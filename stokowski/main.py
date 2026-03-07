@@ -93,7 +93,7 @@ async def check_for_updates():
         return
 
     if behind > 0:
-        _update_message = f"{behind} commit{'s' if behind != 1 else ''} behind origin/main"
+        _update_message = f"Stokowski update available ({behind} commit{'s' if behind != 1 else ''} behind)"
         logger.info(f"Update available: {_update_message}")
 
 
