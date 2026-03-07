@@ -18,6 +18,34 @@ A Python implementation of the [OpenAI Symphony](https://github.com/openai/symph
 
 ---
 
+## Table of contents
+
+- [What it actually does](#what-it-actually-does)
+- [How is this different from Emdash?](#how-is-this-different-from-emdash)
+- [What is it?](#what-is-it)
+- [Features](#features)
+- [What Stokowski adds beyond Symphony](#what-stokowski-adds-beyond-symphony)
+- [Setup guide](#setup-guide)
+  - [1. Install prerequisites](#1-install-prerequisites)
+  - [2. Install Stokowski](#2-install-stokowski)
+  - [3. Get your Linear API key](#3-get-your-linear-api-key)
+  - [4. Configure your environment](#4-configure-your-environment)
+  - [5. Set up Linear workflow states](#5-set-up-linear-workflow-states)
+  - [6. Configure your workflow](#6-configure-your-workflow)
+  - [7. Validate](#7-validate)
+  - [8. Run](#8-run)
+- [Configuration reference](#configuration-reference)
+- [Prompt template variables](#prompt-template-variables)
+- [MCP servers](#mcp-servers)
+- [Writing good tickets for agents](#writing-good-tickets-for-agents)
+- [Getting the most out of Stokowski](#getting-the-most-out-of-stokowski)
+- [Architecture](#architecture)
+- [Security](#security)
+- [License](#license)
+- [Credits](#credits)
+
+---
+
 ## What it actually does
 
 You write a ticket in Linear. You move it to **Todo**. That's it — Stokowski handles everything else:
