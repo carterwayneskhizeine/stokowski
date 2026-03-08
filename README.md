@@ -41,6 +41,7 @@ A Python implementation of the [OpenAI Symphony](https://github.com/openai/symph
 - [Getting the most out of Stokowski](#getting-the-most-out-of-stokowski)
 - [Architecture](#architecture)
 - [Upgrading](#upgrading)
+- [Releases](#releases)
 - [Security](#security)
 - [License](#license)
 - [Credits](#credits)
@@ -704,6 +705,29 @@ That's it. Your `WORKFLOW.md`, `.env`, and any workspace directories are untouch
 ```bash
 git diff HEAD@{1} WORKFLOW.example.md
 ```
+
+---
+
+## Releases
+
+Stokowski uses a human-controlled release process powered by a Claude Code slash command.
+
+**To cut a release:**
+
+1. Make sure you're on an up-to-date `main` branch
+2. Run `/release` in Claude Code from the root of this repo
+3. Claude will analyse commits since the last release, propose a semver bump, and draft human-readable release notes
+4. Review and approve the proposed version and release notes
+5. Claude opens a PR titled `Release vX.Y.Z` with the release notes as the PR body
+6. Review the PR, then **squash-merge** it
+7. The GitHub Action automatically creates the git tag and GitHub release
+
+> **Note:** Release PRs must be squash-merged. The GitHub Action detects releases by reading the squash-merge commit message, which GitHub sets to the PR title (`Release vX.Y.Z`). Regular merges use a different format and will not trigger a release.
+
+**What gets created:**
+- `CHANGELOG.md` in the repo — structured commit history per release
+- GitHub release — the AI-written human-readable release notes from the PR body
+- Git tag — `vX.Y.Z` created automatically on merge
 
 ---
 
