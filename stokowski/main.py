@@ -57,44 +57,34 @@ def setup_logging(verbose: bool = False):
 # ── Update check ───────────────────────────────────────────────────────────
 
 async def check_for_updates():
-    """Check if the local Stokowski repo is behind origin/main."""
+    """Check if a newer Stokowski release is available on GitHub."""
     global _update_message
-    logger = logging.getLogger("stokowski")
-    repo_dir = Path(__file__).resolve().parent.parent
+    from . import __version__
 
-    async def _git(*args: str) -> tuple[int, str]:
-        proc = await asyncio.create_subprocess_exec(
-            "git", "-C", str(repo_dir), *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, _ = await proc.communicate()
-        return proc.returncode, stdout.decode().strip()
-
-    # Check if it's a git repo
-    rc, _ = await _git("rev-parse", "--git-dir")
-    if rc != 0:
-        logger.info("Stokowski not installed from git clone — update checks disabled")
-        return
-
-    # Fetch latest from remote (quiet, fast)
-    rc, _ = await _git("fetch", "--quiet")
-    if rc != 0:
-        return
-
-    # Count commits behind origin/main
-    rc, count_str = await _git("rev-list", "--count", "HEAD..origin/main")
-    if rc != 0 or not count_str:
-        return
+    def _parse_ver(v: str) -> tuple[int, ...]:
+        try:
+            return tuple(int(x) for x in v.split("."))
+        except ValueError:
+            return (0,)
 
     try:
-        behind = int(count_str)
-    except ValueError:
-        return
-
-    if behind > 0:
-        _update_message = f"Stokowski update available ({behind} commit{'s' if behind != 1 else ''} behind)"
-        logger.info(f"Update available: {_update_message}")
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                "https://api.github.com/repos/Sugar-Coffee/stokowski/releases/latest",
+                headers={"Accept": "application/vnd.github+json"},
+            )
+            if resp.status_code != 200:
+                return
+            latest_tag = resp.json().get("tag_name", "").lstrip("v")
+            if not latest_tag:
+                return
+            if _parse_ver(latest_tag) > _parse_ver(__version__):
+                _update_message = (
+                    f"Stokowski {latest_tag} available (you have {__version__})"
+                )
+    except Exception:
+        pass  # Update checks are best-effort
 
 
 # ── Keyboard handler ────────────────────────────────────────────────────────
