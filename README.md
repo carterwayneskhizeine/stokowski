@@ -53,15 +53,15 @@ You write a ticket in Linear. You move it to **Todo**. That's it — Stokowski h
 
 ```mermaid
 flowchart TD
-    A([You move ticket to Todo]) --> B[Stokowski picks it up\nclones repo into isolated workspace]
-    B --> C[Claude Code reads codebase\nCLAUDE.md and ticket description]
-    C --> D[Agent implements the feature\nwrites code · runs tests · fixes errors]
-    D --> E[Agent opens a Pull Request\nand moves ticket to Human Review]
+    A([You move ticket to Todo]) --> B["Stokowski picks it up<br/>clones repo into isolated workspace"]
+    B --> C["Claude Code reads codebase<br/>CLAUDE.md and ticket description"]
+    C --> D["Agent implements the feature<br/>writes code · runs tests · fixes errors"]
+    D --> E["Agent opens a Pull Request<br/>and moves ticket to Human Review"]
     E --> F([You review the PR])
     F -->|approved| G[You move ticket to Merging]
     F -->|changes requested| H[You move ticket to Rework]
-    H --> I[Agent reads new PR comments\nCI · bots · reviewers]
-    I --> J[Agent addresses feedback\nupdates PR]
+    H --> I["Agent reads new PR comments<br/>CI · bots · reviewers"]
+    I --> J["Agent addresses feedback<br/>updates PR"]
     J --> E
     G --> K[Agent merges the PR]
     K --> L([Done ✓])
