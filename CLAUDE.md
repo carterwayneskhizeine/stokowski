@@ -164,6 +164,44 @@ CLI entry point (`cli()`) and keyboard handler.
 
 **`_load_dotenv()`** reads `.env` from cwd on startup — supports `KEY=value` format, ignores comments and blank lines. The project-local `.env` takes precedence over the shell environment (uses direct assignment, overrides existing env vars).
 
+### Pipeline mode (optional)
+
+When `WORKFLOW.md` includes a `pipeline:` section, Stokowski operates in staged pipeline mode instead of single-prompt mode.
+
+**Stage files** live in `stages/` alongside `WORKFLOW.md`. Each is a Markdown file with YAML front matter (overrides) and a Jinja2 prompt body. Stage overrides are merged with root config defaults — only specified fields are overridden.
+
+**Gates** are human checkpoints declared inline as `gate:name` in the stage list. When reached, Stokowski moves the issue to a gate Linear state, posts a tracking comment, and waits. Each gate declares a `rework_to` target stage for when humans request changes.
+
+**Stage tracking** is persisted as structured HTML comments on Linear issues:
+- `<!-- stokowski:stage {...} -->` — machine-readable stage position
+- `<!-- stokowski:gate {...} -->` — gate status (waiting/approved/rework)
+
+**Recovery on restart:** Stokowski reads the latest tracking comment to recover pipeline position.
+
+**Session modes per stage:**
+- `session: inherit` — resumes the prior Claude Code session (default)
+- `session: fresh` — starts a new session (for blind review, different runners)
+
+**Runner types:**
+- `runner: claude` — uses Claude Code CLI (default). Supports `--resume`, stream-json, token tracking.
+- `runner: codex` — uses Codex CLI. No session resume, no stream-json. Exit code only.
+
+**Linear states for pipeline mode:**
+- Active states (e.g., "In Progress") — agent is working on a stage
+- Gate states (e.g., "Awaiting Gate") — waiting for human decision
+- Gate Approved — human approved, Stokowski advances to next stage
+- Rework — human wants changes, Stokowski returns to the gate's `rework_to` stage
+- Terminal states — pipeline complete or cancelled
+
+**Pipeline run counter:** Tracks how many times the pipeline has been restarted due to rework. Visible in tracking comments.
+
+### tracking.py
+Handles reading/writing structured tracking comments:
+- `make_stage_comment()` — builds stage entry comment with hidden JSON + human-readable text
+- `make_gate_comment()` — builds gate status comment (waiting/approved/rework)
+- `parse_latest_tracking()` — scans comments to find latest tracking entry for crash recovery
+- `resolve_stage_index()` — finds a stage's position in the pipeline
+
 ---
 
 ## Data flow: issue dispatch to PR
