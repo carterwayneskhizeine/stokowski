@@ -47,6 +47,8 @@ class RunAttempt:
     last_event: str | None = None
     last_message: str = ""
     completed_at: datetime | None = None
+    stage: str | None = None           # current pipeline stage name
+    runner_type: str = "claude"        # "claude" or "codex"
 
 
 @dataclass
