@@ -291,6 +291,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   .status-pill.failed     { background: rgba(217,95,82,.1);  color: var(--red);   border: 1px solid rgba(217,95,82,.25); }
   .status-pill.retrying   { background: rgba(91,156,246,.1); color: var(--blue);  border: 1px solid rgba(91,156,246,.25); }
   .status-pill.pending    { background: transparent;          color: var(--muted); border: 1px solid var(--border-hi); }
+  .status-pill.gate { background: rgba(232, 184, 75, 0.08); color: var(--amber-dim); border: 1px solid var(--amber-dim); }
 
   .agent-msg {
     font-size: 12px;
@@ -515,20 +516,32 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   }
 
   function statusPill(status) {
-    const cls = ['streaming','succeeded','failed','retrying','pending'].includes(status) ? status : 'pending';
-    const label = status === 'streaming' ? 'live' : status;
+    const cls = ['streaming','succeeded','failed','retrying','pending','gate'].includes(status) ? status : 'pending';
+    const label = status === 'streaming' ? 'live' : status === 'gate' ? 'awaiting gate' : status;
     return `<span class="status-pill ${cls}">${label}</span>`;
   }
 
   function renderAgents(data) {
-    const all = [...(data.running || []), ...(data.retrying || []).map(r => ({
-      issue_identifier: r.issue_identifier,
-      status: 'retrying',
-      turn_count: r.attempt,
-      tokens: { total_tokens: 0 },
-      last_message: r.error || 'waiting to retry...',
-      session_id: null,
-    }))];
+    const all = [
+      ...(data.running || []),
+      ...(data.retrying || []).map(r => ({
+        issue_identifier: r.issue_identifier,
+        status: 'retrying',
+        turn_count: r.attempt,
+        tokens: { total_tokens: 0 },
+        last_message: r.error || 'waiting to retry...',
+        session_id: null,
+      })),
+      ...(data.gates || []).map(g => ({
+        issue_identifier: g.issue_identifier,
+        status: 'gate',
+        stage: g.gate_name,
+        turn_count: g.pipeline_run,
+        tokens: { total_tokens: 0 },
+        last_message: 'Awaiting human gate approval',
+        session_id: null,
+      })),
+    ];
 
     document.getElementById('agent-count').textContent = all.length;
 
@@ -577,7 +590,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
       // Metrics
       document.getElementById('v-running').textContent  = running;
-      document.getElementById('v-retrying').textContent = retrying;
+      const gates = data.counts?.gates || 0;
+      document.getElementById('v-retrying').textContent = retrying + gates;
       document.getElementById('v-tokens').textContent   = fmt(data.totals?.total_tokens || 0);
       document.getElementById('v-runtime').textContent  = fmtSecs(data.totals?.seconds_running || 0);
 
