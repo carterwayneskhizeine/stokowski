@@ -121,7 +121,7 @@ mutation($issueId: String!, $stateId: String!) {
 """
 
 WORKFLOW_STATES_QUERY = """
-query($teamId: String!) {
+query($teamId: ID!) {
   workflowStates(filter: { team: { id: { eq: $teamId } } }) {
     nodes {
       id
