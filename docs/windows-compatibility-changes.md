@@ -241,12 +241,40 @@ hooks:
 
 ```
 PermissionError: [Errno 13] error while attempting to bind on address ('127.0.0.1', 4200)
+[WinError 10013] 以一种访问权限不允许的方式做了一个访问套接字的尝试。
 ```
 
+**尝试过的解决方案**:
+
+1. **原始代码** (`asyncio.create_task(_uvicorn_server.serve())`) - 失败，抛出 `SystemExit`
+2. **使用 `uvicorn.run()` 在独立线程中运行** (`asyncio.to_thread()`) - 失败
+3. **管理员权限** - 已排除，不是权限问题
+4. **端口占用** - 已排除，不是端口问题
+5. **捕获 `SystemExit` 和 `OSError`** ✅ **成功** - 在异步包装函数中捕获异常并优雅降级
+
+**可能的根本原因**:
+- Windows 安全软件（Defender、防火墙、VPN、代理）阻止了 127.0.0.1 的端口绑定
+- Windows 网络栈的某些配置问题
+
 **解决方案**:
-1. 不使用 Web 仪表板，直接运行 `stokowski`
-2. 以管理员权限运行
-3. 检查防火墙设置
+
+1. **推荐：使用排除范围外的端口** ✅
+   Windows 预留了一段端口范围（通过 `netsh int ipv4 show excludedportrange protocol=tcp` 查看），使用不在范围内的端口即可。
+
+   ```
+   # 4200 在排除范围内（4169-4268），不可用
+   # 9001 可用
+   stokowski --port 9001
+   ```
+
+2. **备选：捕获绑定异常**
+   程序也会捕获绑定异常，允许在 Web 仪表板启动失败的情况下继续运行。
+
+   ```powershell
+   # 不使用 Web 仪表板
+   stokowski
+   ```
+3. 在 Linux/macOS 容器或虚拟机中运行
 
 ---
 

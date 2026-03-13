@@ -267,7 +267,17 @@ async def run_orchestrator(workflow_path: str, port: int | None = None):
             )
             _uvicorn_server = uvicorn.Server(server_config)
             _uvicorn_server.install_signal_handlers = lambda: None
-            _uvicorn_task = asyncio.create_task(_uvicorn_server.serve())
+
+            async def _run_uvicorn():
+                try:
+                    await _uvicorn_server.serve()
+                except (SystemExit, OSError) as exc:
+                    console.print(
+                        f"[yellow]Web dashboard failed to start (port {port}): {exc}[/yellow]"
+                        "\n[dim]Continuing without web dashboard.[/dim]"
+                    )
+
+            _uvicorn_task = asyncio.create_task(_run_uvicorn())
             console.print(f"[green]Web dashboard →[/green] http://127.0.0.1:{port}")
         except ImportError:
             console.print(
