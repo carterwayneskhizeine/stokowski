@@ -49,7 +49,9 @@ A Python implementation of the [OpenAI Symphony](https://github.com/openai/symph
 
 ## What it actually does
 
-You write a ticket in Linear. You move it to **Todo**. That's it — Stokowski handles everything else:
+You write a ticket in Linear. You move it to **Todo**. Stokowski picks it up and runs it through whatever workflow you've configured — agent stages, human review gates, rework loops, all defined in a single `workflow.yaml` file.
+
+Here's an example workflow — investigate, implement, review, merge — with human gates between each stage:
 
 ```mermaid
 flowchart TD
@@ -66,6 +68,8 @@ flowchart TD
     H -->|rework| E
     I --> J([Done])
 ```
+
+This is just one example. The state machine is fully configurable — you define the states, transitions, gates, and rework targets. Want a single-stage workflow with no gates? A research loop that cycles until a human is satisfied? Different runners (Claude Code vs Codex) and models at each stage? All configurable in `workflow.yaml`.
 
 Each agent runs in its own isolated git clone — multiple tickets can be worked in parallel without conflicts. Token usage, turn count, and last activity are tracked live in the terminal and web dashboard.
 
