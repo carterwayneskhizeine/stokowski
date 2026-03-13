@@ -270,7 +270,7 @@ def parse_workflow_file(path: str | Path) -> WorkflowDefinition:
     if not path.exists():
         raise FileNotFoundError(f"Workflow file not found: {path}")
 
-    content = path.read_text()
+    content = path.read_text(encoding="utf-8")
     config_raw: dict[str, Any] = {}
     prompt_body = ""
 

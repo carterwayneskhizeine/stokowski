@@ -22,3 +22,6 @@ Repository = "https://github.com/Sugar-Coffee/stokowski"
 
 [project.scripts]
 stokowski = "stokowski.main:cli"
+
+[tool.setuptools.packages.find]
+include = ["stokowski*"]

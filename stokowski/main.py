@@ -6,13 +6,21 @@ import argparse
 import asyncio
 import logging
 import os
+import platform
 import select
 import signal
 import sys
-import termios
 import threading
-import tty
 from pathlib import Path
+
+# Windows doesn't have termios/tty
+if platform.system() == "Windows":
+    import msvcrt
+    termios = None
+    tty = None
+else:
+    import termios
+    import tty
 
 
 def _load_dotenv():
@@ -158,6 +166,19 @@ class KeyboardHandler:
         if not sys.stdin.isatty():
             return
 
+        # Windows path
+        if termios is None:
+            try:
+                while not self._stop.is_set():
+                    if msvcrt.kbhit():
+                        ch = msvcrt.getch().decode('utf-8', errors='ignore').lower()
+                        self._handle(ch)
+                    self._stop.wait(0.1)
+            except Exception:
+                pass
+            return
+
+        # Unix path
         fd = sys.stdin.fileno()
         old = termios.tcgetattr(fd)
         try:
@@ -347,6 +368,29 @@ def cli():
 def _force_kill_children():
     """Kill any lingering claude -p processes."""
     import subprocess
+
+    # Windows path: use taskkill
+    if platform.system() == "Windows":
+        try:
+            # Find processes by command line pattern
+            result = subprocess.run(
+                ["tasklist", "/FI", "IMAGENAME eq claude.exe", "/FO", "CSV"],
+                capture_output=True, text=True,
+            )
+            # Parse and kill each claude.exe process
+            for line in result.stdout.strip().split('\n')[1:]:  # Skip header
+                if not line.strip():
+                    continue
+                try:
+                    pid = line.split(',')[1].strip('"')
+                    subprocess.run(["taskkill", "/PID", pid, "/F"], capture_output=True)
+                except (ValueError, IndexError):
+                    pass
+        except Exception:
+            pass
+        return
+
+    # Unix path: use pgrep
     try:
         result = subprocess.run(
             ["pgrep", "-f", "claude.*-p.*--output-format.*stream-json"],
