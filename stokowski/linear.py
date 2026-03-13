@@ -360,7 +360,14 @@ class LinearClient:
             success = data.get("issueUpdate", {}).get("success", False)
             if success:
                 logger.info(f"Moved issue {issue_id} to state '{state_name}'")
+            else:
+                logger.error(f"Failed to update state for {issue_id}: success=False")
             return success
+        except httpx.HTTPStatusError as e:
+            response_text = e.response.text
+            logger.error(f"Failed to update state for {issue_id}: HTTP {e.response.status_code}")
+            logger.error(f"Response: {response_text}")
+            return False
         except Exception as e:
             logger.error(f"Failed to update state for {issue_id}: {e}")
             return False
