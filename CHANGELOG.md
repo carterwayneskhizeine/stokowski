@@ -8,6 +8,45 @@ All notable changes to Stokowski are documented here.
 
 ---
 
+## [0.2.0] - 2026-03-13
+
+### Added
+
+- feat: configurable state machine workflows replacing fixed staged pipeline (`config.py`, `orchestrator.py`) (c0109d9)
+- feat: three-layer prompt assembly — global prompt + stage prompt + lifecycle injection (`prompt.py`) (a2d61fd)
+- feat: multi-runner support — Claude Code and Codex configurable per-state (`runner.py`) (8ff0e74)
+- feat: gate protocol with "Gate Approved" / "Rework" Linear states and `max_rework` escalation (`orchestrator.py`) (b100531)
+- feat: structured state tracking via HTML comments on Linear issues (`tracking.py`) (1a684c4)
+- feat: Linear comment creation, comment fetching, and issue state mutation methods (`linear.py`) (e475351)
+- feat: `on_stage_enter` lifecycle hook (`config.py`) (c5852c4)
+- feat: Codex runner stall detection and timeout handling (`runner.py`) (db58f04)
+- feat: pipeline completion moves issues to terminal state and cleans workspace (`orchestrator.py`) (d4a239c)
+- feat: pending gates and runner type shown in web dashboard (`web.py`) (283b145, 5064a5b)
+- feat: pipeline stage config dataclasses and validation (`config.py`) (8b769d8, a4dd34d)
+- docs: example `workflow.yaml` and `prompts/*.example.md` files (da63359, da7d8bb)
+
+### Fixed
+
+- fix: gate claiming, duplicate comments, crash recovery, codex timeout (8f2ac3f)
+- fix: transition key mismatch — example config used `success`, orchestrator expected `complete` (b18da0a)
+- fix: use `<br/>` for line breaks in Mermaid node labels (754711f)
+
+### Changed
+
+- refactor: `WORKFLOW.md` (YAML front matter + prompt body) replaced by `workflow.yaml` + `prompts/` directory (c0109d9)
+- refactor: `TrackerConfig.active_states` / `terminal_states` replaced by `LinearStatesConfig` mapping (c0109d9)
+- refactor: `RunAttempt.stage` renamed to `state_name`, `runner_type` field removed (f0ccd48)
+- refactor: web dashboard updated for state machine field names (09a7fa8)
+- refactor: CLI auto-detects `workflow.yaml` → `workflow.yml` → `WORKFLOW.md` (0a8df54)
+- docs: README rewritten for state machine model, multi-runner support, config reference (d6c7ad3, b18da0a)
+- docs: CLAUDE.md updated for state machine workflow model (4775637)
+
+### Chores
+
+- chore: add `workflow.yaml`, `workflow.yml`, and `prompts/*.md` to `.gitignore` (59cb69e)
+
+---
+
 ## [0.1.0] - 2026-03-08
 
 ### Added
@@ -30,5 +69,6 @@ All notable changes to Stokowski are documented here.
 
 ---
 
-[Unreleased]: https://github.com/Sugar-Coffee/stokowski/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Sugar-Coffee/stokowski/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Sugar-Coffee/stokowski/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Sugar-Coffee/stokowski/releases/tag/v0.1.0
