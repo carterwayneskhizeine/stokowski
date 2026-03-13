@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from jinja2 import BaseLoader, Environment
+from jinja2 import BaseLoader, Environment, Undefined
 
 from .config import LinearStatesConfig, ServiceConfig, StateConfig
 from .models import Issue
@@ -55,26 +55,14 @@ def render_template(template_str: str, context: dict[str, Any]) -> str:
     return template.render(**context)
 
 
-class _SilentUndefined:
+class _SilentUndefined(Undefined):
     """Jinja2 undefined that renders as empty string."""
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        pass
 
     def __str__(self) -> str:
         return ""
 
-    def __iter__(self) -> Any:
-        return iter([])
-
-    def __bool__(self) -> bool:
-        return False
-
-    def __getattr__(self, name: str) -> _SilentUndefined:
-        return _SilentUndefined()
-
-    def __getitem__(self, name: str) -> _SilentUndefined:
-        return _SilentUndefined()
+    def __iter__(self):  # type: ignore[override]
+        return iter(())
 
 
 def build_template_context(
@@ -94,9 +82,11 @@ def build_template_context(
         last_run_at: ISO timestamp of the last run, if any.
 
     Returns:
-        A flat dict suitable for Jinja2 rendering.
+        A dict suitable for Jinja2 rendering. Includes both flat keys
+        (issue_identifier, etc.) and a nested 'issue' object for convenience.
     """
     return {
+        # Flat keys for backward compatibility
         "issue_id": issue.id,
         "issue_identifier": issue.identifier,
         "issue_title": issue.title,
@@ -106,6 +96,18 @@ def build_template_context(
         "issue_state": issue.state,
         "issue_branch": issue.branch_name or "",
         "issue_labels": issue.labels,
+        # Nested issue object for easier template access
+        "issue": {
+            "id": issue.id,
+            "identifier": issue.identifier,
+            "title": issue.title,
+            "description": issue.description or "",
+            "url": issue.url or "",
+            "priority": issue.priority,
+            "state": issue.state,
+            "branch_name": issue.branch_name or "",
+            "labels": issue.labels,
+        },
         "state_name": state_name,
         "run": run,
         "attempt": attempt,
