@@ -276,6 +276,41 @@ PermissionError: [Errno 13] error while attempting to bind on address ('127.0.0.
    ```
 3. 在 Linux/macOS 容器或虚拟机中运行
 
+### 8. `stokowski/runner.py` - 增大 NDJSON 流缓冲区
+
+**问题**: asyncio `StreamReader` 默认缓冲区上限为 64KB。Claude Code 输出的某些 NDJSON 行（如包含大量代码的 `tool_use` 或 `assistant` 事件）超过此限制，导致：
+
+```
+ValueError: Separator is found, but chunk is longer than limit
+```
+
+进而触发重试（`error=continuation`）。
+
+**解决方案**: 在两处 `asyncio.create_subprocess_exec` 调用中传入 `limit=10MB`：
+
+```python
+# 修改前
+proc = await asyncio.create_subprocess_exec(
+    *args,
+    cwd=str(workspace_path),
+    stdout=asyncio.subprocess.PIPE,
+    stderr=asyncio.subprocess.PIPE,
+    start_new_session=True,
+)
+
+# 修改后
+proc = await asyncio.create_subprocess_exec(
+    *args,
+    cwd=str(workspace_path),
+    stdout=asyncio.subprocess.PIPE,
+    stderr=asyncio.subprocess.PIPE,
+    start_new_session=True,
+    limit=10 * 1024 * 1024,  # 10MB — default 64KB is too small for large NDJSON lines
+)
+```
+
+两处调用均需修改，此修改与平台无关（非 Windows 专属）。
+
 ---
 
 ## 测试验证

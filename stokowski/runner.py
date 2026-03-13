@@ -123,6 +123,7 @@ async def run_codex_turn(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             start_new_session=True,
+            limit=10 * 1024 * 1024,  # 10MB — default 64KB is too small for large NDJSON lines
         )
         if on_pid and proc.pid:
             on_pid(proc.pid, True)
@@ -278,6 +279,7 @@ async def run_agent_turn(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             start_new_session=True,
+            limit=10 * 1024 * 1024,  # 10MB — default 64KB is too small for large NDJSON lines
         )
         if on_pid and proc.pid:
             on_pid(proc.pid, True)
