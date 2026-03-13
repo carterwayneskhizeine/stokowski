@@ -125,7 +125,71 @@ return p.read_text()
 return p.read_text(encoding="utf-8")
 ```
 
-### 5. `pyproject.toml` - 打包配置修复
+### 5. `stokowski/prompt.py` - Jinja2 兼容性修复
+
+**问题**: `_SilentUndefined` 类没有继承 `jinja2.Undefined`，在 Jinja2 3.0+ 版本中会报错：
+```
+'undefined' must be a subclass of 'jinja2.Undefined'
+```
+
+**解决方案**: 让 `_SilentUndefined` 继承 `jinja2.Undefined` 基类。
+
+```python
+# 修改前
+class _SilentUndefined:
+    """Jinja2 undefined that renders as empty string."""
+    ...
+
+# 修改后
+from jinja2 import BaseLoader, Environment, Undefined
+
+class _SilentUndefined(Undefined):
+    """Jinja2 undefined that renders as empty string."""
+
+    def __str__(self) -> str:
+        return ""
+
+    def __iter__(self):  # type: ignore[override]
+        return iter(())
+```
+
+### 6. `stokowski/prompt.py` - 支持嵌套 issue 对象
+
+**问题**: Prompt 模板使用 `{{ issue.identifier }}` 等嵌套变量，但 `build_template_context()` 只提供扁平化变量（如 `{{ issue_identifier }}`），导致模板渲染报错：
+```
+'issue' is undefined
+```
+
+**解决方案**: 在 `build_template_context()` 中同时提供扁平化变量和嵌套的 `issue` 对象，保持向后兼容。
+
+```python
+# 在返回的 dict 中添加嵌套的 issue 对象
+return {
+    # Flat keys for backward compatibility
+    "issue_id": issue.id,
+    "issue_identifier": issue.identifier,
+    ...
+    # Nested issue object for easier template access
+    "issue": {
+        "id": issue.id,
+        "identifier": issue.identifier,
+        "title": issue.title,
+        "description": issue.description or "",
+        "url": issue.url or "",
+        "priority": issue.priority,
+        "state": issue.state,
+        "branch_name": issue.branch_name or "",
+        "labels": issue.labels,
+    },
+    ...
+}
+```
+
+现在模板可以使用两种格式：
+- `{{ issue_identifier }}` - 扁平化格式
+- `{{ issue.identifier }}` - 嵌套对象格式
+
+### 7. `pyproject.toml` - 打包配置修复
 
 **问题**: setuptools 自动发现了 `stokowski/` 和 `prompts/` 两个目录，而 `prompts/` 只是示例文件，不应该被打包。
 
