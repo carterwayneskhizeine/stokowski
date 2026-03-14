@@ -42,6 +42,23 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     --font:      'IBM Plex Mono', monospace;
   }
 
+  /* Light mode */
+  .light {
+    --bg:        #f5f5f4;
+    --surface:   #ffffff;
+    --border:    #e5e5e4;
+    --border-hi: #d6d6d4;
+    --text:      #1a1a1a;
+    --muted:     #767672;
+    --dim:       #a8a8a4;
+    --amber:     #b5880d;
+    --amber-dim: #e8d9a8;
+    --green:     #2d8a4e;
+    --red:       #c44d42;
+    --blue:      #3b7ad9;
+    --purple:    #7c5cd6;
+  }
+
   html, body {
     background: var(--bg);
     color: var(--text);
@@ -108,7 +125,28 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   .header-right {
     display: flex;
     align-items: center;
-    gap: 24px;
+    gap: 16px;
+  }
+
+  .theme-toggle {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .theme-toggle:hover {
+    border-color: var(--amber-dim);
+    color: var(--text);
+  }
+
+  .theme-toggle .icon {
+    font-size: 12px;
   }
 
   .status-dot {
@@ -251,7 +289,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   }
 
   .agent-header:hover {
-    background: #141414;
+    background: var(--dim);
   }
 
   .agent-id {
@@ -340,7 +378,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     overflow-y: auto;
     border-top: 1px solid var(--border);
     padding: 0;
-    background: #0a0a0a;
+    background: var(--bg);
   }
 
   .agent-log.open {
@@ -349,7 +387,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
   .log-entry {
     padding: 8px 24px;
-    border-bottom: 1px solid #131313;
+    border-bottom: 1px solid var(--border);
     font-size: 12px;
     line-height: 1.6;
   }
@@ -388,7 +426,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     font-size: 11px;
     max-height: 200px;
     overflow-y: auto;
-    background: #080808;
+    background: var(--bg);
     border-left: 2px solid var(--border-hi);
     margin-left: 12px;
     padding-left: 12px;
@@ -551,6 +589,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <span class="logo-tag">Claude Code Orchestrator</span>
     </div>
     <div class="header-right">
+      <button id="theme-btn" class="theme-toggle" onclick="toggleTheme(\'light\')">
+        <span class="icon">&#9790;</span>
+      </button>
       <div id="status-dot" class="status-dot idle"></div>
       <span id="ts" class="timestamp">&mdash;</span>
     </div>
@@ -620,6 +661,33 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </div>
 
 <script>
+  // Theme handling
+  function getTheme() {
+    return localStorage.getItem('theme') || 'dark';
+  }
+
+  function setTheme(theme) {
+    document.documentElement.classList.toggle('light', theme === 'light');
+    localStorage.setItem('theme', theme);
+    var btn = document.getElementById('theme-btn');
+    if (theme === 'light') {
+      btn.innerHTML = '<span class="icon">&#9788;</span>';
+      btn.setAttribute('onclick', 'toggleTheme(\\'dark\\')');
+    } else {
+      btn.innerHTML = '<span class="icon">&#9790;</span>';
+      btn.setAttribute('onclick', 'toggleTheme(\\'light\\')');
+    }
+  }
+
+  function toggleTheme(mode) {
+    setTheme(mode);
+  }
+
+  // Apply saved theme on load
+  (function() {
+    setTheme(getTheme());
+  })();
+
   // Track which logs are expanded
   const expandedLogs = new Set();
 
