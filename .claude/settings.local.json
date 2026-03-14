@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "mcp__chrome-devtools__list_console_messages",
+      "mcp__chrome-devtools__evaluate_script"
     ]
   }
 }

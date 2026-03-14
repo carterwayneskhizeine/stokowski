@@ -696,7 +696,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     }
 
     return '<div class="agent-card' + completedClass + '">' +
-      '<div class="agent-header" onclick="toggleLog(\'' + cardId + '\')">' +
+      '<div class="agent-header" onclick="toggleLog(\\'' + cardId + '\\')">' +
         '<div>' +
           '<div class="agent-id">' + esc(r.issue_identifier) + '</div>' +
           (expandLabel ? '<div class="expand-hint">' + expandLabel + '</div>' : '') +
