@@ -44,6 +44,9 @@ class Orchestrator:
         self.retry_attempts: dict[str, RetryEntry] = {}
         self.completed: set[str] = set()
 
+        # Completed runs history (for dashboard)
+        self.completed_runs: list[dict] = []  # capped at 50
+
         # Aggregate metrics
         self.total_input_tokens: int = 0
         self.total_output_tokens: int = 0
@@ -896,6 +899,26 @@ class Orchestrator:
         if attempt.status != "canceled":
             self._last_completed_at[issue.id] = completed_at
 
+        # Save to completed history for dashboard
+        self.completed_runs.append({
+            "issue_id": attempt.issue_id,
+            "issue_identifier": attempt.issue_identifier,
+            "status": attempt.status,
+            "state_name": attempt.state_name,
+            "turn_count": attempt.turn_count,
+            "tokens": {
+                "input_tokens": attempt.input_tokens,
+                "output_tokens": attempt.output_tokens,
+                "total_tokens": attempt.total_tokens,
+            },
+            "started_at": attempt.started_at.isoformat() if attempt.started_at else None,
+            "completed_at": completed_at.isoformat(),
+            "error": attempt.error,
+            "message_log": attempt.message_log,
+        })
+        if len(self.completed_runs) > 50:
+            self.completed_runs = self.completed_runs[-50:]
+
         self.running.pop(issue.id, None)
         self._tasks.pop(issue.id, None)
 
@@ -1107,6 +1130,7 @@ class Orchestrator:
                         "total_tokens": r.total_tokens,
                     },
                     "state_name": r.state_name,
+                    "message_log": r.message_log,
                 }
                 for r in self.running.values()
             ],
@@ -1128,6 +1152,7 @@ class Orchestrator:
                 }
                 for issue_id, gate_state in self._pending_gates.items()
             ],
+            "completed": self.completed_runs,
             "totals": {
                 "input_tokens": self.total_input_tokens,
                 "output_tokens": self.total_output_tokens,
