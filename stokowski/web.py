@@ -631,7 +631,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
 
 def create_app(orchestrator: Orchestrator) -> FastAPI:
-    app = FastAPI(title="Stokowski", version="0.1.0")
+    app = FastAPI(title="Stokowski", version="0.2.0")
 
     @app.get("/", response_class=HTMLResponse)
     async def dashboard():

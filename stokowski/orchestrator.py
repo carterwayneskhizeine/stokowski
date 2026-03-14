@@ -348,6 +348,50 @@ class Orchestrator:
 
             self._schedule_retry(issue, attempt_num=0, delay_ms=1000)
 
+    def _infer_pending_gate(self, issue: "Issue", tracking: "dict | None") -> str:
+        """Infer the pending gate from current state machine position or last tracking comment.
+
+        Used as a fallback when _pending_gates and gate comments both fail to identify
+        the gate — e.g., when the user manually moves an issue to Gate Approved before
+        Stokowski posts the gate tracking comment.
+        """
+        # 1. Check _issue_current_state: if already pointing at a gate, use it
+        current = self._issue_current_state.get(issue.id)
+        if current:
+            current_cfg = self.cfg.states.get(current)
+            if current_cfg and current_cfg.type == "gate":
+                logger.info(
+                    f"Inferred pending gate from current state: {current} "
+                    f"(issue={issue.identifier})"
+                )
+                return current
+            # If agent state, look up its 'complete' transition
+            if current_cfg and current_cfg.type == "agent":
+                target = current_cfg.transitions.get("complete", "")
+                target_cfg = self.cfg.states.get(target)
+                if target_cfg and target_cfg.type == "gate":
+                    logger.info(
+                        f"Inferred pending gate from agent complete transition: {target} "
+                        f"(issue={issue.identifier})"
+                    )
+                    return target
+
+        # 2. Infer from last state tracking comment
+        if tracking and tracking.get("type") == "state":
+            state_name = tracking.get("state", "")
+            state_cfg = self.cfg.states.get(state_name)
+            if state_cfg and state_cfg.type == "agent":
+                target = state_cfg.transitions.get("complete", "")
+                target_cfg = self.cfg.states.get(target)
+                if target_cfg and target_cfg.type == "gate":
+                    logger.info(
+                        f"Inferred pending gate from state tracking comment: {target} "
+                        f"(issue={issue.identifier})"
+                    )
+                    return target
+
+        return ""
+
     async def _handle_gate_responses(self):
         """Check for gate-approved and rework issues, handle transitions."""
         # Early return if no gate states in config
@@ -377,6 +421,8 @@ class Orchestrator:
                 tracking = parse_latest_tracking(comments)
                 if tracking and tracking.get("type") == "gate" and tracking.get("status") == "waiting":
                     gate_state = tracking.get("state", "")
+                if not gate_state:
+                    gate_state = self._infer_pending_gate(issue, tracking)
 
             if gate_state:
                 run = self._issue_state_runs.get(issue.id, 1)
@@ -418,6 +464,8 @@ class Orchestrator:
                 tracking = parse_latest_tracking(comments)
                 if tracking and tracking.get("type") == "gate" and tracking.get("status") == "waiting":
                     gate_state = tracking.get("state", "")
+                if not gate_state:
+                    gate_state = self._infer_pending_gate(issue, tracking)
 
             if gate_state:
                 gate_cfg = self.cfg.states.get(gate_state)
@@ -690,9 +738,11 @@ class Orchestrator:
                         logger.warning(f"State check failed, continuing: {e}")
 
                     prompt = (
-                        f"Continue working on {issue.identifier}. "
-                        f"The issue is still in '{current_state}' state. "
-                        f"Check your progress and continue the task."
+                        f"Continue working on {issue.identifier} if there is remaining work. "
+                        f"The issue is in '{current_state}' state. "
+                        f"If all tasks for this stage are already complete, post a brief "
+                        f"completion summary to the Linear issue and stop — "
+                        f"do not repeat work already done."
                     )
 
                 attempt = await run_turn(

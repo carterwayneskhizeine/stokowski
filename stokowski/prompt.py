@@ -205,8 +205,18 @@ def build_lifecycle_section(
     lines.append("### When Done")
     lines.append("")
     lines.append(
-        "When you have completed your work, post a summary comment on "
-        "the Linear issue describing what was done and any decisions made."
+        "When you have completed your work for this stage:"
+    )
+    lines.append("")
+    lines.append(
+        "1. Post a summary comment on the Linear issue (see global instructions for how)."
+    )
+    lines.append(
+        "2. **Do NOT** change the Linear issue state or try to move to the next stage — "
+        "Stokowski handles all state transitions automatically when you finish."
+    )
+    lines.append(
+        "3. Simply complete your final response and stop."
     )
     lines.append("")
     lines.append("<!-- END STOKOWSKI LIFECYCLE -->")
