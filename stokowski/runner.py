@@ -54,7 +54,9 @@ def build_claude_args(
             "You are running in headless/unattended mode via Stokowski orchestrator. "
             "Do NOT use interactive skills, slash commands, or the Skill tool. "
             "Do NOT invoke brainstorming, plan mode, or any interactive workflow. "
-            "Work autonomously and directly on the task."
+            "Work autonomously and directly on the task. "
+            "When your task is complete, output a clear completion message and STOP. "
+            "Do NOT loop, wait for responses, or continue working after completion."
         )
         extra = claude_cfg.append_system_prompt or ""
         combined = f"{headless_context}\n{extra}".strip()
