@@ -34,12 +34,17 @@ tracker:
 # ---------------------------------------------------------------------------
 # Linear state name mapping
 # ---------------------------------------------------------------------------
+# These map Stokowski's internal lifecycle roles to your Linear state names.
+# You can rename values to match your Linear setup (e.g. todo: "Ready"),
+# but all six roles are required — removing or reordering them will break
+# the dispatch and gate protocol.
 linear_states:
-  active: "In Progress"
-  review: "Human Review"
-  gate_approved: "Gate Approved"
-  rework: "Rework"
-  terminal:
+  todo: "Todo"                        # issues picked up from this state
+  active: "In Progress"               # moved here automatically when agent starts
+  review: "Human Review"              # agent pauses here at a gate for human review
+  gate_approved: "Gate Approved"      # human approved — agent advances to next state
+  rework: "Rework"                    # human requested changes — agent re-enters rework target
+  terminal:                           # issues in these states stop any running agent
     - Done
     - Closed
     - Cancelled

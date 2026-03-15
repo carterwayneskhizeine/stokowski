@@ -354,21 +354,22 @@ LINEAR_API_KEY=lin_api_your_key_here
 
 ### 5. Set up Linear workflow states
 
-Stokowski uses a specific set of states to manage the agent ↔ human handoff. Linear includes basic states by default; you'll need to add a few custom ones.
+Stokowski uses a fixed set of lifecycle roles — `todo`, `active`, `review`, `gate_approved`, `rework`, and `terminal` — that drive the dispatch and gate protocol. Each role maps to a Linear state name via the `linear_states` section in your config.
 
-**Recommended states:**
+You can rename these to match your team's Linear setup (e.g. `todo: "Ready"` instead of `todo: "Todo"`), but all roles are required. Removing or changing their purpose will break the system.
 
-| State | Set by | Meaning |
-|-------|--------|---------|
-| `Todo` | Human | Ready for an agent to pick up |
-| `In Progress` | Agent | Actively working on the current stage |
-| `Human Review` | Agent | Waiting for human approval at a gate |
-| `Gate Approved` | Human | Gate passed — agent picks up next stage |
-| `Rework` | Human | Changes requested — agent re-enters the previous stage |
-| `Done` | Auto | Complete (via GitHub integration) |
-| `Cancelled` | Human | Abandoned |
+**Required states:**
 
-**To add the custom states:**
+| Role | Default state name | Set by | Meaning |
+|------|-------------------|--------|---------|
+| `todo` | `Todo` | Human | Ready for an agent to pick up — moved to In Progress automatically |
+| `active` | `In Progress` | Stokowski | Agent is actively working on the current stage |
+| `review` | `Human Review` | Stokowski | Agent paused at a gate, waiting for human review |
+| `gate_approved` | `Gate Approved` | Human | Gate passed — agent advances to next state |
+| `rework` | `Rework` | Human | Changes requested — agent re-enters rework target |
+| `terminal` | `Done`, `Cancelled` | Auto/Human | Issue complete — agent stopped, workspace cleaned up |
+
+**To add the custom states in Linear:**
 
 1. Linear → **Settings** → **Teams** → your team → **Workflow**
 2. Under **In Progress**, add:
@@ -376,7 +377,7 @@ Stokowski uses a specific set of states to manage the agent ↔ human handoff. L
    - `Gate Approved` · colour `#22c55e` (green)
    - `Rework` · colour `#eb5757` (red)
 
-> **Note:** State names are case-sensitive and must exactly match the `linear_states` mappings in your `workflow.yaml`.
+> **Note:** State names are case-sensitive and must exactly match the `linear_states` mappings in your `workflow.yaml`. You can rename the Linear states to anything you like — just update the mapping to match.
 
 **The full lifecycle:**
 
@@ -479,11 +480,15 @@ tracker:
   project_slug: "abc123def456"          # hex slugId from your Linear project URL
   api_key: "$LINEAR_API_KEY"            # env var reference, or omit (uses LINEAR_API_KEY)
 
-linear_states:                          # maps logical names to your Linear state names
-  active: "In Progress"                 # agent is working
-  review: "Human Review"                # waiting for human at a gate
-  gate_approved: "Gate Approved"        # human approved — agent picks up next stage
-  rework: "Rework"                      # human requested changes
+# These map Stokowski's internal lifecycle roles to your Linear state names.
+# You can rename values to match your team's Linear setup (e.g. todo: "Ready"),
+# but all six roles are required — they drive the dispatch and gate protocol.
+linear_states:
+  todo: "Todo"                          # issues picked up from this state
+  active: "In Progress"                 # moved here automatically when agent starts
+  review: "Human Review"                # agent pauses here at a gate for human review
+  gate_approved: "Gate Approved"        # human approved — agent advances to next state
+  rework: "Rework"                      # human requested changes — agent re-enters rework target
   terminal:                             # issues in these states stop any running agent
     - Done
     - Cancelled

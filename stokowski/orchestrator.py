@@ -640,6 +640,20 @@ class Orchestrator:
             ws = await ensure_workspace(ws_root, issue.identifier, self.cfg.hooks)
             attempt.workspace_path = str(ws.path)
 
+            # Move issue from Todo to In Progress if needed
+            todo_state = self.cfg.linear_states.todo
+            if todo_state and issue.state.strip().lower() == todo_state.strip().lower():
+                try:
+                    client = self._ensure_linear_client()
+                    active_state = self.cfg.linear_states.active
+                    await client.update_issue_state(issue.id, active_state)
+                    issue.state = active_state
+                    logger.info(
+                        f"Moved {issue.identifier} from '{todo_state}' to '{active_state}'"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to move {issue.identifier} to active: {e}")
+
             # Post state tracking comment (only for first dispatch of a state)
             if state_name:
                 run = self._issue_state_runs.get(issue.id, 1)

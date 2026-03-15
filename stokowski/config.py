@@ -77,6 +77,7 @@ class ServerConfig:
 @dataclass
 class LinearStatesConfig:
     """Maps logical state names to actual Linear state names."""
+    todo: str = "Todo"
     active: str = "In Progress"
     review: str = "Human Review"
     gate_approved: str = "Gate Approved"
@@ -147,9 +148,15 @@ class ServiceConfig:
         return None
 
     def active_linear_states(self) -> list[str]:
-        """Return Linear state names for all agent states."""
+        """Return Linear state names that should be polled for candidates.
+
+        Includes the todo state (pickup) and all agent state mappings.
+        """
         ls = self.linear_states
         seen: list[str] = []
+        # Always include the todo state so new issues get picked up
+        if ls.todo and ls.todo not in seen:
+            seen.append(ls.todo)
         for sc in self.states.values():
             if sc.type == "agent":
                 linear_name = _resolve_linear_state_name(sc.linear_state, ls)
@@ -348,6 +355,7 @@ def parse_workflow_file(path: str | Path) -> WorkflowDefinition:
     # Parse linear_states
     ls_raw = config_raw.get("linear_states", {}) or {}
     linear_states = LinearStatesConfig(
+        todo=str(ls_raw.get("todo", "Todo")),
         active=str(ls_raw.get("active", "In Progress")),
         review=str(ls_raw.get("review", "Human Review")),
         gate_approved=str(ls_raw.get("gate_approved", "Gate Approved")),
