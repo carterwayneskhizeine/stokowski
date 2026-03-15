@@ -34,6 +34,8 @@ Before starting any implementation work:
 
 ## Posting Linear comments
 
+**IMPORTANT: All Linear comments MUST be posted in Chinese (中文).**
+
 The current issue UUID is `{{ issue_id }}`. To post a comment on the Linear issue, use this Python script:
 
 ```python
@@ -70,6 +72,8 @@ Usage pattern:
 Use this whenever you need to post an investigation summary, workpad update, implementation report, or completion notice.
 
 ## Linear workpad
+
+**All workpad content MUST be in Chinese (中文).**
 
 Use a single Linear comment as a persistent workpad:
 

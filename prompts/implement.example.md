@@ -16,6 +16,8 @@ No description provided.
 
 ## Objective
 
+**IMPORTANT: All Linear comments and workpad updates MUST be in Chinese (中文).**
+
 Implement the solution, create a PR, and ensure it passes all quality checks.
 
 ## First run

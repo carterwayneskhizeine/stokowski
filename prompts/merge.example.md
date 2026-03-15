@@ -6,6 +6,8 @@ You are merging the approved PR for **{{ issue.identifier }}**: {{ issue.title }
 
 ## Objective
 
+**IMPORTANT: All Linear comments and workpad updates MUST be in Chinese (中文).**
+
 Merge the PR and move the issue to its terminal state.  This is a short,
 mechanical stage — no new code changes.
 

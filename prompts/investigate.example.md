@@ -16,6 +16,8 @@ No description provided.
 
 ## Objective
 
+**IMPORTANT: All Linear comments and workpad updates MUST be in Chinese (中文).**
+
 Understand the problem thoroughly before any code is written.  Your output is
 an investigation summary posted as a Linear comment — not code changes.
 

@@ -16,6 +16,8 @@ No description provided.
 
 ## Objective
 
+**IMPORTANT: All Linear comments and workpad updates MUST be in Chinese (中文).**
+
 Perform a thorough, adversarial code review.  Your job is to find problems
 the implementer missed — not to rubber-stamp the PR.
 

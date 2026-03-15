@@ -1,0 +1,208 @@
+# =============================================================================
+# Stokowski — Example State Machine Workflow
+# =============================================================================
+#
+# Copy this file to workflow.yaml and customise for your project.
+# Stokowski re-reads this file on every poll tick — changes take effect
+# without restart.
+#
+# Prompt files live in the prompts/ directory.  Each agent state references
+# its prompt via the `prompt` field.  A global prompt (shared preamble) is
+# injected before the stage-specific prompt when set.
+#
+# Linear states mapping:
+#   active        → the "working" state for agent stages
+#   review        → human review / PR review state
+#   gate_approved → human approved a gate (triggers transition)
+#   rework        → human requested changes (triggers rework_to)
+#   terminal      → list of done/closed states
+#
+# State types:
+#   agent    — Stokowski dispatches Claude Code in this state
+#   gate     — pauses for human review; approve → next, rework → rework_to
+#   terminal — issue is finished; workspace cleaned up
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Tracker
+# ---------------------------------------------------------------------------
+tracker:
+  kind: linear
+  project_slug: "7e6b4c9bcd1d"    # hex slugId from your Linear project URL
+  api_key: $LINEAR_API_KEY      # or set LINEAR_API_KEY in .env / environment
+
+# ---------------------------------------------------------------------------
+# Linear state name mapping
+# ---------------------------------------------------------------------------
+linear_states:
+  active: "In Progress"
+  review: "Human Review"
+  gate_approved: "Gate Approved"
+  rework: "Rework"
+  terminal:
+    - Done
+    - Closed
+    - Cancelled
+    - Canceled
+    - Duplicate
+
+# ---------------------------------------------------------------------------
+# Polling
+# ---------------------------------------------------------------------------
+polling:
+  interval_ms: 15000              # 15 seconds between ticks
+
+# ---------------------------------------------------------------------------
+# Workspace
+# ---------------------------------------------------------------------------
+workspace:
+  root: C:/Code/clawx_flow/stokowski-workspaces
+
+# ---------------------------------------------------------------------------
+# Hooks — shell scripts run in the workspace directory
+# ---------------------------------------------------------------------------
+hooks:
+  after_create: |
+    git clone --depth 1 git@github.com:carterwayneskhizeine/clawx_goldie.git .
+  before_run: |
+    git fetch origin main
+    git rebase origin/main 2>/dev/null || git rebase --abort
+  timeout_ms: 120000
+
+# ---------------------------------------------------------------------------
+# Claude defaults (inherited by all agent states unless overridden)
+# States using runner: codex will use the Codex CLI instead.
+# ---------------------------------------------------------------------------
+claude:
+  permission_mode: auto
+  model: claude-sonnet-4-6
+  max_turns: 20
+  turn_timeout_ms: 3600000        # 1 hour per turn
+  stall_timeout_ms: 300000        # 5 minutes with no output → kill
+
+# ---------------------------------------------------------------------------
+# Agent concurrency
+# ---------------------------------------------------------------------------
+agent:
+  max_concurrent_agents: 4
+  max_retry_backoff_ms: 300000    # 5-minute cap on exponential backoff
+  max_concurrent_agents_by_state:
+    investigate: 2                # allow 2 concurrent investigations
+    implement: 2
+    code-review: 1                # serial reviews prevent merge conflicts
+
+# ---------------------------------------------------------------------------
+# Prompts
+# ---------------------------------------------------------------------------
+prompts:
+  global_prompt: prompts/global.example_CN.md
+
+# ---------------------------------------------------------------------------
+# Server (optional web dashboard)
+# ---------------------------------------------------------------------------
+server:
+  port: 4200
+
+# ---------------------------------------------------------------------------
+# State machine
+# ---------------------------------------------------------------------------
+#
+# Order matters: the first agent state is the entry state for new issues.
+#
+# Transitions fire automatically on agent success or human action:
+#   - Agent finishes successfully  → "complete" transition
+#   - Human approves a gate        → "approve" transition
+#   - Human requests rework        → rework_to target
+#
+states:
+
+  # ── 1. Investigate ──────────────────────────────────────────────────────
+  # Read the codebase, understand the problem, post an investigation summary.
+  # Uses Opus for deeper reasoning.  Low turn count — investigation only.
+  investigate:
+    type: agent
+    prompt: prompts/investigate.example_CN.md
+    linear_state: active
+    model: claude-opus-4-6
+    max_turns: 8
+    session: inherit
+    transitions:
+      complete: research-review
+
+  # ── 2. Research Review (gate) ───────────────────────────────────────────
+  # Human reviews the investigation before implementation starts.
+  # Rework loops back to investigate.
+  research-review:
+    type: gate
+    linear_state: review
+    rework_to: investigate
+    max_rework: 3
+    transitions:
+      approve: implement
+
+  # ── 3. Implement ────────────────────────────────────────────────────────
+  # Write code, create branch, run tests, open PR.
+  # Uses Sonnet for fast iteration.  Higher turn count for complex work.
+  implement:
+    type: agent
+    prompt: prompts/implement.example_CN.md
+    linear_state: active
+    model: claude-sonnet-4-6
+    max_turns: 30
+    session: inherit
+    transitions:
+      complete: implementation-review
+
+  # ── 4. Implementation Review (gate) ─────────────────────────────────────
+  # Human reviews the PR before automated code review.
+  # Rework loops back to implement.
+  implementation-review:
+    type: gate
+    linear_state: review
+    rework_to: implement
+    max_rework: 5
+    transitions:
+      approve: code-review
+
+  # ── 5. Code Review ─────────────────────────────────────────────────────
+  # Automated adversarial review: fresh session, no prior context.
+  # Opus reviews the diff and posts findings.
+  # Tip: set runner: codex here to get a second-opinion from a different
+  # provider — different states can use different runners in the same run.
+  code-review:
+    type: agent
+    prompt: prompts/review.example_CN.md
+    linear_state: active
+    runner: claude              # "claude" (default) or "codex"
+    model: claude-opus-4-6
+    max_turns: 10
+    session: fresh              # no prior context — adversarial review
+    transitions:
+      complete: merge-review
+
+  # ── 6. Merge Review (gate) ──────────────────────────────────────────────
+  # Human reviews the code review findings and decides to merge or rework.
+  # Rework goes back to implement (not code-review).
+  merge-review:
+    type: gate
+    linear_state: review
+    rework_to: implement
+    max_rework: 5
+    transitions:
+      approve: merge
+
+  # ── 7. Merge ────────────────────────────────────────────────────────────
+  # Merge the PR and clean up.  Short turn count — just the merge.
+  merge:
+    type: agent
+    prompt: prompts/merge.example_CN.md
+    linear_state: active
+    max_turns: 5
+    session: inherit
+    transitions:
+      complete: done
+
+  # ── 8. Done (terminal) ─────────────────────────────────────────────────
+  done:
+    type: terminal
+    linear_state: terminal
