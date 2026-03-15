@@ -27,7 +27,14 @@ mechanical stage — no new code changes.
    gh pr merge <number> --squash --delete-branch
    ```
 5. Update the Linear workpad with the merge confirmation.
-6. Move the Linear issue to `Done`.
+
+6. **STOP and EXIT immediately** after updating the workpad. Do not:
+   - Re-check if the PR was merged
+   - Post additional confirmation comments
+   - Attempt to move the Linear issue state (the orchestrator handles this automatically)
+   - Wait for CI or human responses
+
+Your session ends when the workpad is updated. The orchestrator will transition the issue to Done.
 
 ## Rework run
 
@@ -44,6 +51,8 @@ If this is a rework run (merge was attempted before but failed):
      Linear and stop (this needs to go back to implementation).
    - If it is a flaky or infrastructure issue, re-run and retry the merge.
 4. Update the workpad with what happened.
+
+5. **STOP and EXIT immediately** after updating the workpad.
 
 ## Do NOT
 

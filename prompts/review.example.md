@@ -43,6 +43,12 @@ the implementer missed — not to rubber-stamp the PR.
    - Note anything that looks good
    - Give an overall assessment: approve, request changes, or flag concerns
 
+7. **STOP and EXIT immediately** after posting the review comment. Do not:
+   - Re-check the PR status or re-read your comment
+   - Post additional comments or confirmations
+   - Verify that the comment was received
+   - Wait for responses or human action
+
 ## Rework run
 
 If this is a rework run (the review stage is being re-run after changes):
@@ -55,6 +61,8 @@ If this is a rework run (the review stage is being re-run after changes):
 3. Verify that previously raised issues have been addressed.
 4. Check for any new issues introduced by the rework.
 5. Post an updated `## Code Review` comment with your revised assessment.
+
+6. **STOP and EXIT immediately** after posting the updated comment.
 
 ## Guidelines
 

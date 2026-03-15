@@ -61,13 +61,23 @@ If this is a rework run (a branch and PR already exist):
    - Any decisions or trade-offs
 7. Append a rework section to the Linear workpad.
 
-## Quality bar
+## Completion protocol
 
-Before finishing, verify:
+When all work is done and the PR is ready for review:
 
-- [ ] All tests pass
-- [ ] No type errors
-- [ ] No lint errors
-- [ ] All acceptance criteria from the ticket description met
-- [ ] PR created (or updated) and linked to Linear issue
-- [ ] Workpad updated with completion summary
+1. **Post a final completion comment** to Linear with:
+   - Summary of what was implemented
+   - PR number and link
+   - Branch name
+   - Test results (pass/fail counts)
+   - Any known limitations or follow-up items
+
+2. **Move the Linear issue to "Human Review" state** to trigger the implementation review gate.
+
+3. **STOP and EXIT immediately** after posting the completion comment. Do not:
+   - Continue working on the issue
+   - Add more comments
+   - Check the PR status again
+   - Wait for responses
+
+Your session ends when the completion comment is posted. The human reviewer will take over from there.

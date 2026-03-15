@@ -49,3 +49,12 @@ If this is a rework run (the workspace already has investigation content):
 - Write implementation code.
 - Create branches or PRs.
 - Modify source files (reading is fine).
+
+## Completion protocol
+
+When the investigation is complete:
+
+1. Post your final `## Investigation` summary as a Linear comment.
+2. **STOP** — Your task is complete when the comment is posted.
+   Do not continue investigating, do not re-read files.
+   The orchestrator will handle the next steps.
