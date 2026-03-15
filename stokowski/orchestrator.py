@@ -241,6 +241,17 @@ class Orchestrator:
         self._issue_state_runs[issue.id] = 1
         return entry, 1
 
+    async def _safe_enter_gate(self, issue: Issue, state_name: str):
+        """Wrapper around _enter_gate that logs errors."""
+        try:
+            await self._enter_gate(issue, state_name)
+        except Exception as e:
+            logger.error(
+                f"Enter gate failed issue={issue.identifier} "
+                f"gate={state_name}: {e}",
+                exc_info=True,
+            )
+
     async def _enter_gate(self, issue: Issue, state_name: str):
         """Move issue to gate state and post tracking comment."""
         state_cfg = self.cfg.states.get(state_name)
@@ -260,9 +271,21 @@ class Orchestrator:
         review_state = self.cfg.linear_states.review
         moved = await client.update_issue_state(issue.id, review_state)
         if not moved:
-            logger.warning(
-                f"Failed to move {issue.identifier} to review state '{review_state}'"
+            logger.error(
+                f"Failed to move {issue.identifier} to review state '{review_state}' "
+                f"— issue will remain claimed to prevent re-dispatch loop"
             )
+            # Keep claimed so the issue doesn't get re-dispatched while
+            # still in the active Linear state. Track the gate so
+            # _handle_gate_responses can pick it up if the state is
+            # changed manually.
+            self._pending_gates[issue.id] = state_name
+            self._issue_current_state[issue.id] = state_name
+            self.running.pop(issue.id, None)
+            self._tasks.pop(issue.id, None)
+            # Schedule a retry to attempt the state move again
+            self._schedule_retry(issue, attempt_num=0, delay_ms=10_000)
+            return
 
         self._pending_gates[issue.id] = state_name
         self._issue_current_state[issue.id] = state_name
@@ -275,6 +298,19 @@ class Orchestrator:
             f"Gate entered issue={issue.identifier} gate={state_name} "
             f"run={run}"
         )
+
+    async def _safe_transition(self, issue: Issue, transition_name: str):
+        """Wrapper around _transition that logs errors instead of silently swallowing them."""
+        try:
+            await self._transition(issue, transition_name)
+        except Exception as e:
+            logger.error(
+                f"Transition failed issue={issue.identifier} "
+                f"transition={transition_name}: {e}",
+                exc_info=True,
+            )
+            # Release claimed so the issue can be retried on next tick
+            self.claimed.discard(issue.id)
 
     async def _transition(self, issue: Issue, transition_name: str):
         """Follow a transition from the current state.
@@ -588,7 +624,7 @@ class Orchestrator:
         # If at a gate, enter it instead of dispatching a worker
         state_cfg = self.cfg.states.get(state_name) if state_name else None
         if state_cfg and state_cfg.type == "gate":
-            asyncio.create_task(self._enter_gate(issue, state_name))
+            asyncio.create_task(self._safe_enter_gate(issue, state_name))
             return
 
         attempt = RunAttempt(
@@ -901,7 +937,7 @@ class Orchestrator:
         if attempt.status == "succeeded":
             if attempt.state_name and attempt.state_name in self.cfg.states:
                 # State machine mode: transition via "complete"
-                asyncio.create_task(self._transition(issue, "complete"))
+                asyncio.create_task(self._safe_transition(issue, "complete"))
             else:
                 # Legacy mode
                 self._schedule_retry(issue, attempt_num=1, delay_ms=1000)
