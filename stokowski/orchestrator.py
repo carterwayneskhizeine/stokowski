@@ -1082,6 +1082,7 @@ class Orchestrator:
                     task.cancel()
                 self.running.pop(issue_id, None)
                 self._tasks.pop(issue_id, None)
+                self.claimed.discard(issue_id)
 
             elif state_lower not in active_lower:
                 # Neither active nor terminal nor review - stop without cleanup
