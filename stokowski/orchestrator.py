@@ -258,7 +258,11 @@ class Orchestrator:
         await client.post_comment(issue.id, comment)
 
         review_state = self.cfg.linear_states.review
-        await client.update_issue_state(issue.id, review_state)
+        moved = await client.update_issue_state(issue.id, review_state)
+        if not moved:
+            logger.warning(
+                f"Failed to move {issue.identifier} to review state '{review_state}'"
+            )
 
         self._pending_gates[issue.id] = state_name
         self._issue_current_state[issue.id] = state_name
@@ -310,8 +314,11 @@ class Orchestrator:
             terminal_state = self.cfg.terminal_linear_states()[0] if self.cfg.terminal_linear_states() else "Done"
             try:
                 client = self._ensure_linear_client()
-                await client.update_issue_state(issue.id, terminal_state)
-                logger.info(f"Moved issue {issue.identifier} to terminal state '{terminal_state}'")
+                moved = await client.update_issue_state(issue.id, terminal_state)
+                if moved:
+                    logger.info(f"Moved {issue.identifier} to terminal state '{terminal_state}'")
+                else:
+                    logger.warning(f"Failed to move {issue.identifier} to terminal state '{terminal_state}'")
             except Exception as e:
                 logger.warning(f"Failed to move {issue.identifier} to terminal: {e}")
             # Clean up workspace
@@ -344,7 +351,9 @@ class Orchestrator:
 
             # Ensure issue is in active Linear state
             active_state = self.cfg.linear_states.active
-            await client.update_issue_state(issue.id, active_state)
+            moved = await client.update_issue_state(issue.id, active_state)
+            if not moved:
+                logger.warning(f"Failed to move {issue.identifier} to active state '{active_state}'")
 
             self._schedule_retry(issue, attempt_num=0, delay_ms=1000)
 
@@ -393,8 +402,11 @@ class Orchestrator:
                     self._issue_current_state[issue.id] = target
 
                 active_state = self.cfg.linear_states.active
-                await client.update_issue_state(issue.id, active_state)
-                issue.state = active_state
+                moved = await client.update_issue_state(issue.id, active_state)
+                if moved:
+                    issue.state = active_state
+                else:
+                    logger.warning(f"Failed to move {issue.identifier} to active after gate approval")
                 self._last_issues[issue.id] = issue
                 logger.info(f"Gate approved issue={issue.identifier} gate={gate_state}")
 
@@ -453,8 +465,11 @@ class Orchestrator:
                 self._issue_current_state[issue.id] = rework_to
 
                 active_state = self.cfg.linear_states.active
-                await client.update_issue_state(issue.id, active_state)
-                issue.state = active_state
+                moved = await client.update_issue_state(issue.id, active_state)
+                if moved:
+                    issue.state = active_state
+                else:
+                    logger.warning(f"Failed to move {issue.identifier} to active after rework")
                 self._last_issues[issue.id] = issue
                 logger.info(
                     f"Rework issue={issue.identifier} gate={gate_state} "
