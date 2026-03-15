@@ -3,7 +3,7 @@ name = "stokowski"
 version = "0.2.0"
 description = "Orchestrate Claude Code agents driven by Linear issues"
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "Apache-2.0"
 authors = [{ name = "Sugar & Coffee", email = "josh@sugarandcoffee.co.uk" }]
 requires-python = ">=3.11"
 dependencies = [
@@ -19,6 +19,9 @@ web = ["fastapi>=0.115", "uvicorn>=0.32"]
 [project.urls]
 Homepage = "https://github.com/Sugar-Coffee/stokowski"
 Repository = "https://github.com/Sugar-Coffee/stokowski"
+
+[tool.setuptools.packages.find]
+include = ["stokowski*"]
 
 [project.scripts]
 stokowski = "stokowski.main:cli"
