@@ -92,6 +92,7 @@ Parses `workflow.yaml` (or legacy `.md` with front matter) into typed dataclasse
 - `LinearStatesConfig` — maps logical state names (`todo`, `active`, `review`, `gate_approved`, `rework`, `terminal`) to actual Linear state names. Issues in the `todo` state are picked up and automatically moved to `active` on dispatch.
 - `PromptsConfig` — global prompt file reference
 - `StateConfig` — a single state in the state machine: type, prompt path, linear_state key, runner, session mode, transitions, per-state overrides (model, max_turns, timeouts, hooks), gate-specific fields (rework_to, max_rework)
+- `WebhookConfig` — webhook notification target for gate events (url, secret, enabled, timeout_seconds). Supports `$VAR` env references. Sends HMAC-SHA256 signed payloads via `X-Webhook-Signature` header.
 
 `ServiceConfig` provides helper methods: `entry_state` (first agent state), `active_linear_states()`, `gate_linear_states()`, `terminal_linear_states()`.
 
@@ -143,6 +144,8 @@ while running:
 - `canceled` → release claim immediately
 
 **Shutdown:** `stop()` sets `_stop_event`, kills all child PIDs via `os.killpg`, cancels async tasks.
+
+**Webhook notifications:** `_notify_webhook()` sends HMAC-SHA256 signed JSON payloads to a configured webhook URL when gate events occur. Triggered from `_enter_gate()` (status=waiting) and `_handle_gate_responses()` escalated branch (status=escalated). Failures are logged but don't block the main flow. Uses `httpx` (already a dependency). Configured via `webhook` section in `workflow.yaml`.
 
 ### runner.py
 `run_agent_turn()` builds CLI args, launches subprocess, streams NDJSON output.
@@ -228,6 +231,10 @@ workflow.yaml parsed → states + config loaded
                 → session_id captured for next turn
             → _on_worker_exit() called
                 → state transition on success → tracking comment posted
+                → if transition target is gate → _enter_gate()
+                    → post gate comment + move Linear state
+                    → _notify_webhook() → HMAC-signed POST to webhook URL
+                → if gate escalated (max rework exceeded) → _notify_webhook()
                 → tokens/timing aggregated
                 → retry or continuation scheduled
 ```

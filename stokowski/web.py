@@ -242,6 +242,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     gap: 16px;
     align-items: start;
     transition: background 0.15s;
+    cursor: pointer;
   }
 
   .agent-card:hover {
@@ -587,6 +588,188 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     color: var(--dim);
     font-weight: 300;
   }
+
+  /* ── Comment drawer ── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    z-index: 200;
+    display: flex;
+    justify-content: flex-end;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s;
+  }
+
+  .modal-overlay.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .modal-drawer {
+    background: #0d0d0d;
+    border-left: 1px solid var(--border-hi);
+    width: 560px;
+    max-width: 92vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.18s;
+    overflow: hidden;
+  }
+
+  .modal-overlay.open .modal-drawer {
+    transform: translateX(0);
+  }
+
+  .modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    gap: 12px;
+  }
+
+  .modal-header-left {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .modal-issue-id {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--amber);
+    flex-shrink: 0;
+  }
+
+  .modal-issue-title {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 300;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .modal-close {
+    background: transparent;
+    border: 1px solid var(--border-hi);
+    color: var(--muted);
+    font-family: var(--font);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 2px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+
+  .modal-close:hover {
+    border-color: var(--amber-dim);
+    color: var(--amber);
+  }
+
+  .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+  }
+
+  .comment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .comment-item {
+    padding: 14px 0 14px 16px;
+    border-left: 2px solid var(--border);
+    position: relative;
+  }
+
+  .comment-item + .comment-item {
+    border-top: none;
+    margin-top: 0;
+  }
+
+  .comment-item.tracking {
+    border-left-color: var(--amber-dim);
+  }
+
+  .comment-item::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: 20px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border-hi);
+    border: 1px solid var(--border);
+  }
+
+  .comment-item.tracking::before {
+    background: var(--amber-dim);
+    border-color: var(--amber-dim);
+  }
+
+  .comment-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .comment-badge {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 2px;
+    background: rgba(232, 184, 75, 0.08);
+    color: var(--amber);
+    border: 1px solid var(--amber-dim);
+  }
+
+  .comment-time {
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 300;
+    letter-spacing: 0.03em;
+  }
+
+  .comment-text {
+    font-size: 12px;
+    color: var(--text);
+    font-weight: 300;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.65;
+  }
+
+  .comment-text.muted {
+    color: var(--muted);
+  }
+
+  .comment-placeholder {
+    text-align: center;
+    padding: 48px 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 300;
+    letter-spacing: 0.04em;
+  }
 </style>
 </head>
 <body>
@@ -673,10 +856,25 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 
   <footer>
-    <span class="footer-left">Refreshes every 3s</span>
+    <span class="footer-left">Refreshes every 3s — click any issue to view comment history</span>
     <span class="footer-right" id="footer-gen">—</span>
   </footer>
 
+</div>
+
+<div id="modal-overlay" class="modal-overlay">
+  <div class="modal-drawer" id="modal-drawer">
+    <div class="modal-header">
+      <div class="modal-header-left">
+        <span id="modal-issue-id" class="modal-issue-id"></span>
+        <span id="modal-issue-title" class="modal-issue-title"></span>
+      </div>
+      <button class="modal-close" id="modal-close-btn">close ×</button>
+    </div>
+    <div class="modal-body" id="modal-body">
+      <div class="comment-placeholder">Select an issue to view comments</div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -844,7 +1042,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       const stateInfo = r.state_name ? `<span style="color:var(--muted);font-size:11px;margin-left:8px">${esc(r.state_name)}</span>` : '';
       const projTag = r.project_name ? `<div class="agent-project">${esc(r.project_name)}</div>` : '';
       return `
-      <div class="agent-card">
+      <div class="agent-card" onclick="window.__stokowskiOpenIssue('${esc(r.issue_identifier)}')">
         <div>
           <div class="agent-id">${esc(r.issue_identifier)}</div>
           ${projTag}
@@ -914,6 +1112,78 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
   refresh();
   setInterval(refresh, 3000);
+
+  // ── Comment drawer ──────────────────────────────────────────────────────
+  const overlay   = document.getElementById('modal-overlay');
+  const drawer    = document.getElementById('modal-drawer');
+  const closeBtn  = document.getElementById('modal-close-btn');
+
+  function openDrawer(identifier) {
+    document.getElementById('modal-issue-id').textContent    = identifier;
+    document.getElementById('modal-issue-title').textContent = '';
+    document.getElementById('modal-body').innerHTML =
+      '<div class="comment-placeholder">Loading…</div>';
+    overlay.classList.add('open');
+    loadComments(identifier);
+  }
+
+  function closeDrawer() {
+    overlay.classList.remove('open');
+  }
+
+  closeBtn.addEventListener('click', closeDrawer);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeDrawer(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
+  window.__stokowskiOpenIssue = openDrawer;
+
+  async function loadComments(identifier) {
+    try {
+      const res  = await fetch('/api/v1/issues/' + encodeURIComponent(identifier) + '/comments');
+      const data = await res.json();
+      if (!res.ok) {
+        document.getElementById('modal-body').innerHTML =
+          '<div class="comment-placeholder">Failed to load comments.</div>';
+        return;
+      }
+      document.getElementById('modal-issue-title').textContent = data.issue_title || '';
+      const comments = data.comments || [];
+      if (comments.length === 0) {
+        document.getElementById('modal-body').innerHTML =
+          '<div class="comment-placeholder">No comments on this issue yet.</div>';
+        return;
+      }
+      document.getElementById('modal-body').innerHTML =
+        '<div class="comment-list">' + comments.map(renderComment).join('') + '</div>';
+    } catch (e) {
+      document.getElementById('modal-body').innerHTML =
+        '<div class="comment-placeholder">Failed to load comments.</div>';
+    }
+  }
+
+  function renderComment(c) {
+    const body = c.body || '';
+    const isTracking = body.includes('<!-- stokowski:state') || body.includes('<!-- stokowski:gate');
+    // Strip hidden HTML comments so machine JSON doesn't pollute the display
+    const display = body.replace(/<!--[\\s\\S]*?-->/g, '').trim();
+    const time = c.createdAt
+      ? new Date(c.createdAt).toLocaleString('en-US', {
+          month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit', hour12: false,
+        })
+      : '';
+    const badge  = isTracking ? '<span class="comment-badge">stokowski</span>' : '';
+    const cls    = isTracking ? 'tracking' : '';
+    const txtCls = display ? '' : ' muted';
+    const txt    = display || '(empty)';
+    return (
+      '<div class="comment-item ' + cls + '">' +
+        '<div class="comment-meta">' + badge +
+          '<span class="comment-time">' + esc(time) + '</span>' +
+        '</div>' +
+        '<div class="comment-text' + txtCls + '">' + esc(txt) + '</div>' +
+      '</div>'
+    );
+  }
 </script>
 </body>
 </html>
@@ -952,6 +1222,16 @@ def create_app(orchestrator: "MultiOrchestrator") -> FastAPI:
     async def api_refresh():
         asyncio.create_task(orchestrator.force_tick())
         return JSONResponse({"ok": True})
+
+    @app.get("/api/v1/issues/{issue_identifier}/comments")
+    async def api_issue_comments(issue_identifier: str):
+        result = await orchestrator.fetch_issue_comments(issue_identifier)
+        if result is None:
+            return JSONResponse(
+                {"error": {"code": "issue_not_found", "message": f"Unknown: {issue_identifier}"}},
+                status_code=404,
+            )
+        return JSONResponse(result)
 
     @app.post("/api/v1/projects/{project_name}/pause")
     async def api_project_pause(project_name: str):

@@ -74,6 +74,15 @@ class AgentConfig:
 
 
 @dataclass
+class WebhookConfig:
+    """Webhook notification target for gate events."""
+    url: str = ""
+    secret: str = ""
+    enabled: bool = True
+    timeout_seconds: int = 10
+
+
+@dataclass
 class ServerConfig:
     port: int | None = None
 
@@ -137,6 +146,7 @@ class ProjectConfig:
     linear_states: LinearStatesConfig = field(default_factory=LinearStatesConfig)
     claude: ClaudeConfig = field(default_factory=ClaudeConfig)
     workflow_dir: Path = field(default_factory=lambda: Path("."))
+    webhook: WebhookConfig = field(default_factory=WebhookConfig)
     # Per-project cap (overrides AgentConfig.max_concurrent_per_project[name]).
     max_concurrent: int | None = None
 
@@ -220,6 +230,7 @@ class ServiceConfig:
     states: dict[str, StateConfig] = field(default_factory=dict)
     projects: list[ProjectConfig] = field(default_factory=list)
     workflow_dir: Path = field(default_factory=lambda: Path("."))
+    webhook: WebhookConfig = field(default_factory=WebhookConfig)
 
     def resolved_api_key(self) -> str:
         # Legacy passthrough — delegates to first project.
@@ -433,6 +444,17 @@ def _parse_prompts(raw: dict[str, Any]) -> PromptsConfig:
     return PromptsConfig(global_prompt=raw.get("global_prompt"))
 
 
+def _parse_webhook(raw: dict[str, Any] | None) -> WebhookConfig:
+    if not raw:
+        return WebhookConfig()
+    return WebhookConfig(
+        url=_resolve_env(str(raw.get("url", ""))),
+        secret=_resolve_env(str(raw.get("secret", ""))),
+        enabled=bool(raw.get("enabled", True)),
+        timeout_seconds=_coerce_int(raw.get("timeout_seconds"), 10),
+    )
+
+
 def _parse_states(raw: dict[str, Any]) -> dict[str, StateConfig]:
     out: dict[str, StateConfig] = {}
     for state_name, state_data in raw.items():
@@ -479,6 +501,7 @@ def _build_project(
         linear_states=_parse_linear_states(linear_states_raw),
         claude=_parse_claude(claude_raw),
         workflow_dir=workflow_dir,
+        webhook=_parse_webhook(raw.get("webhook")),
         max_concurrent=raw.get("max_concurrent"),
     )
 
@@ -562,6 +585,8 @@ def parse_workflow_file(path: str | Path) -> WorkflowDefinition:
             "linear_states": config_raw.get("linear_states") or {},
             "claude": config_raw.get("claude") or {},
         }
+        # Top-level webhook serves as default for projects that don't define one
+        top_webhook = _parse_webhook(config_raw.get("webhook"))
         seen_names: set[str] = set()
         for idx, raw in enumerate(projects_raw):
             if not isinstance(raw, dict):
@@ -572,7 +597,10 @@ def parse_workflow_file(path: str | Path) -> WorkflowDefinition:
             if name in seen_names:
                 raise ValueError(f"Duplicate project name: {name}")
             seen_names.add(name)
-            projects.append(_build_project(name, raw, defaults, workflow_dir))
+            proj = _build_project(name, raw, defaults, workflow_dir)
+            if not proj.webhook.url and top_webhook.url:
+                proj.webhook = top_webhook
+            projects.append(proj)
     else:
         # Legacy single-project mode. Build one ProjectConfig from top-level.
         tracker_raw = config_raw.get("tracker", {}) or {}
@@ -584,6 +612,7 @@ def parse_workflow_file(path: str | Path) -> WorkflowDefinition:
             "states": config_raw.get("states") or {},
             "linear_states": config_raw.get("linear_states") or {},
             "claude": config_raw.get("claude") or {},
+            "webhook": config_raw.get("webhook") or {},
         }
         name = _legacy_project_name(tracker_raw, path)
         projects.append(_build_project(name, synthetic_raw, {}, workflow_dir))
@@ -603,6 +632,7 @@ def parse_workflow_file(path: str | Path) -> WorkflowDefinition:
         states=p0.states,
         projects=projects,
         workflow_dir=workflow_dir,
+        webhook=p0.webhook,
     )
 
     return WorkflowDefinition(config=cfg, prompt_template=prompt_template)

@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
+import json
 import logging
 import os
 import signal
@@ -12,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, StrictUndefined, TemplateSyntaxError
+import httpx
 
 from .config import (
     ClaudeConfig,
@@ -116,6 +120,7 @@ class Orchestrator:
             states=project.states,
             projects=[project],
             workflow_dir=full.config.workflow_dir,
+            webhook=project.webhook,
         )
         return WorkflowDefinition(config=project_cfg, prompt_template=full.prompt_template)
 
@@ -193,6 +198,66 @@ class Orchestrator:
                 api_key=self.cfg.resolved_api_key(),
             )
         return self._linear
+
+    async def _notify_webhook(
+        self,
+        issue: Issue,
+        gate_state: str,
+        gate_status: str,
+        run: int,
+        extra: dict | None = None,
+    ):
+        """Send gate event notification to a webhook endpoint."""
+        wh = self.cfg.webhook
+        if not wh.enabled or not wh.url:
+            return
+
+        payload: dict[str, Any] = {
+            "event_type": "gate_waiting" if gate_status == "waiting" else "gate_escalated",
+            "issue": {
+                "id": issue.id,
+                "identifier": issue.identifier,
+                "title": issue.title,
+                "description": issue.description or "",
+                "url": issue.url or f"https://linear.app/issue/{issue.identifier}",
+            },
+            "gate_state": gate_state,
+            "gate_status": gate_status,
+            "run": run,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        if extra:
+            payload.update(extra)
+
+        body = json.dumps(payload).encode("utf-8")
+
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+        if wh.secret:
+            sig = hmac.new(
+                wh.secret.encode("utf-8"), body, hashlib.sha256
+            ).hexdigest()
+            headers["X-Webhook-Signature"] = sig
+
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    wh.url,
+                    content=body,
+                    headers=headers,
+                    timeout=wh.timeout_seconds,
+                )
+                if resp.status_code in (200, 202):
+                    logger.info(
+                        f"Webhook sent issue={issue.identifier} "
+                        f"gate={gate_state} status={gate_status}"
+                    )
+                else:
+                    logger.warning(
+                        f"Webhook failed issue={issue.identifier} "
+                        f"status={resp.status_code}"
+                    )
+        except Exception as e:
+            logger.warning(f"Webhook error issue={issue.identifier}: {e}")
 
     async def start(self):
         """Start the orchestration loop."""
@@ -419,6 +484,13 @@ class Orchestrator:
             f"run={run}"
         )
 
+        await self._notify_webhook(
+            issue=issue,
+            gate_state=state_name,
+            gate_status="waiting",
+            run=run,
+        )
+
     async def _safe_transition(self, issue: Issue, transition_name: str):
         """Wrapper around _transition that logs errors instead of silently swallowing them."""
         try:
@@ -607,6 +679,13 @@ class Orchestrator:
                     logger.warning(
                         f"Max rework exceeded issue={issue.identifier} "
                         f"gate={gate_state} run={run} max={max_rework}"
+                    )
+                    await self._notify_webhook(
+                        issue=issue,
+                        gate_state=gate_state,
+                        gate_status="escalated",
+                        run=run,
+                        extra={"max_rework": max_rework},
                     )
                     continue
 
@@ -1413,6 +1492,27 @@ class Orchestrator:
                 self.claimed.discard(issue_id)
                 self._release_slot(issue_id)
 
+    async def fetch_issue_comments(self, issue_identifier: str) -> dict | None:
+        """Fetch Linear comments for an issue by its identifier. Returns None if not tracked."""
+        issue = next(
+            (i for i in self._last_issues.values() if i.identifier == issue_identifier),
+            None,
+        )
+        if issue is None:
+            return None
+        try:
+            client = self._ensure_linear_client()
+            comments = await client.fetch_comments(issue.id)
+            return {
+                "issue_identifier": issue.identifier,
+                "issue_title": issue.title,
+                "issue_url": getattr(issue, "url", None),
+                "comments": comments,
+            }
+        except Exception as e:
+            logger.warning(f"Failed to fetch comments for {issue_identifier}: {e}")
+            return None
+
     def get_state_snapshot(self) -> dict[str, Any]:
         """Get current runtime state for observability."""
         now = datetime.now(timezone.utc)
@@ -1639,6 +1739,14 @@ class MultiOrchestrator:
             *(o._tick() for o in self.orchestrators.values()),
             return_exceptions=True,
         )
+
+    async def fetch_issue_comments(self, issue_identifier: str) -> dict | None:
+        """Fetch comments for an issue, searching across all project orchestrators."""
+        for orch in self.orchestrators.values():
+            result = await orch.fetch_issue_comments(issue_identifier)
+            if result is not None:
+                return result
+        return None
 
     def get_state_snapshot(self) -> dict[str, Any]:
         """Aggregate all orchestrator snapshots into one combined view."""
