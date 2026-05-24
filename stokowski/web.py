@@ -770,6 +770,84 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     font-weight: 300;
     letter-spacing: 0.04em;
   }
+
+  /* ── Drawer section headers ── */
+  .drawer-section-header {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 20px 0 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .drawer-section-header:first-child { padding-top: 4px; }
+
+  /* ── Thinking log items ── */
+  .think-item {
+    position: relative;
+    padding: 10px 0 10px 16px;
+    border-left: 2px solid #222;
+  }
+  .think-item + .think-item { margin-top: 2px; }
+  .think-item::before {
+    content: '';
+    position: absolute;
+    left: -5px; top: 14px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #333;
+    border: 2px solid var(--bg);
+  }
+  .think-item.tool  { border-left-color: #1a3828; }
+  .think-item.tool::before  { background: #2d7a50; }
+  .think-item.result { border-left-color: var(--amber-dim); }
+  .think-item.result::before { background: var(--amber-dim); }
+
+  .think-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .think-badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 2px;
+    background: #1a1a1a;
+    color: var(--muted);
+  }
+  .think-badge.tool   { background: #162318; color: #4caf50; }
+  .think-badge.result { background: #251c00; color: var(--amber); }
+  .think-time { font-size: 10px; color: var(--muted); }
+
+  .think-text {
+    font-size: 12px;
+    line-height: 1.6;
+    color: #999;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .think-tool-name {
+    font-size: 12px;
+    color: #4caf50;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .think-input {
+    font-size: 11px;
+    color: #777;
+    background: #0d0d0d;
+    border: 1px solid #1c1c1c;
+    border-radius: 3px;
+    padding: 6px 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-top: 4px;
+  }
 </style>
 </head>
 <body>
@@ -1146,18 +1224,65 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         return;
       }
       document.getElementById('modal-issue-title').textContent = data.issue_title || '';
-      const comments = data.comments || [];
-      if (comments.length === 0) {
+      const comments    = data.comments     || [];
+      const thinkingLog = data.thinking_log || [];
+
+      if (comments.length === 0 && thinkingLog.length === 0) {
         document.getElementById('modal-body').innerHTML =
-          '<div class="comment-placeholder">No comments on this issue yet.</div>';
+          '<div class="comment-placeholder">No activity recorded for this issue yet.</div>';
         return;
       }
-      document.getElementById('modal-body').innerHTML =
-        '<div class="comment-list">' + comments.map(renderComment).join('') + '</div>';
+
+      let html = '';
+      if (thinkingLog.length > 0) {
+        html += '<div class="drawer-section-header">AI 思考过程</div>';
+        html += '<div class="comment-list">' + thinkingLog.map(renderThinkingEntry).join('') + '</div>';
+      }
+      if (comments.length > 0) {
+        html += '<div class="drawer-section-header">Linear 评论</div>';
+        html += '<div class="comment-list">' + comments.map(renderComment).join('') + '</div>';
+      }
+      document.getElementById('modal-body').innerHTML = html;
     } catch (e) {
       document.getElementById('modal-body').innerHTML =
         '<div class="comment-placeholder">Failed to load comments.</div>';
     }
+  }
+
+  function fmtThinkTime(ts) {
+    if (!ts) return '';
+    return new Date(ts).toLocaleString('en-US', {
+      month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    });
+  }
+
+  function renderThinkingEntry(e) {
+    const time = '<span class="think-time">' + esc(fmtThinkTime(e.ts)) + '</span>';
+    if (e.type === 'tool_use') {
+      const inputLines = Object.entries(e.input || {}).map(([k, v]) => k + ': ' + v).join('\\n');
+      return (
+        '<div class="think-item tool">' +
+          '<div class="think-meta"><span class="think-badge tool">tool</span>' + time + '</div>' +
+          '<div class="think-tool-name">' + esc(e.name || '') + '</div>' +
+          (inputLines ? '<div class="think-input">' + esc(inputLines) + '</div>' : '') +
+        '</div>'
+      );
+    }
+    if (e.type === 'result') {
+      return (
+        '<div class="think-item result">' +
+          '<div class="think-meta"><span class="think-badge result">result</span>' + time + '</div>' +
+          '<div class="think-text">' + esc(e.text || '') + '</div>' +
+        '</div>'
+      );
+    }
+    return (
+      '<div class="think-item">' +
+        '<div class="think-meta"><span class="think-badge">assistant</span>' + time + '</div>' +
+        '<div class="think-text">' + esc(e.text || '') + '</div>' +
+      '</div>'
+    );
   }
 
   function renderComment(c) {

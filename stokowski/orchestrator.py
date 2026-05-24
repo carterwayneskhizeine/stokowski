@@ -35,7 +35,7 @@ from .pool import ConcurrencyPool
 from .prompt import assemble_prompt, build_lifecycle_section
 from .runner import run_agent_turn, run_turn
 from .tracking import make_gate_comment, make_state_comment, parse_latest_tracking
-from .workspace import ensure_workspace, remove_workspace
+from .workspace import ensure_workspace, remove_workspace, sanitize_key
 
 logger = logging.getLogger("stokowski")
 
@@ -1126,6 +1126,8 @@ class Orchestrator:
                     on_pid=self._on_child_pid,
                     env=agent_env,
                 )
+                self._flush_thinking_log(issue, attempt)
+                attempt.messages.clear()
             else:
                 # Legacy mode: multi-turn loop
                 max_turns = claude_cfg.max_turns
@@ -1167,6 +1169,8 @@ class Orchestrator:
                         on_pid=self._on_child_pid,
                         env=agent_env,
                     )
+                    self._flush_thinking_log(issue, attempt)
+                    attempt.messages.clear()
 
                     if attempt.status != "succeeded":
                         break
@@ -1289,6 +1293,42 @@ class Orchestrator:
     def _on_agent_event(self, identifier: str, event_type: str, event: dict):
         """Callback for agent events."""
         logger.debug(f"Agent event issue={identifier} type={event_type}")
+
+    # ── Thinking log ───────────────────────────────────────────────────────
+
+    def _thinking_log_path(self, identifier: str) -> Path:
+        log_dir = Path("/home/goldie/Code/stokowski-workspaces")
+        log_dir.mkdir(parents=True, exist_ok=True)
+        return log_dir / f"{sanitize_key(identifier)}.jsonl"
+
+    def _flush_thinking_log(self, issue: Issue, attempt: RunAttempt) -> None:
+        """Append thinking events from this turn to the persistent JSONL log."""
+        if not attempt.messages:
+            return
+        try:
+            path = self._thinking_log_path(issue.identifier)
+            with open(path, "a", encoding="utf-8") as f:
+                for msg in attempt.messages:
+                    f.write(json.dumps(msg, ensure_ascii=False) + "\n")
+        except Exception as e:
+            logger.warning(f"Failed to write thinking log for {issue.identifier}: {e}")
+
+    def _read_thinking_log(self, identifier: str) -> list[dict]:
+        """Read persisted thinking events for an issue."""
+        try:
+            path = self._thinking_log_path(identifier)
+            if not path.exists():
+                return []
+            entries = []
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        entries.append(json.loads(line))
+            return entries
+        except Exception as e:
+            logger.warning(f"Failed to read thinking log for {identifier}: {e}")
+            return []
 
     def _on_worker_exit(self, issue: Issue, attempt: RunAttempt):
         """Handle worker completion."""
@@ -1498,7 +1538,7 @@ class Orchestrator:
                 self._release_slot(issue_id)
 
     async def fetch_issue_comments(self, issue_identifier: str) -> dict | None:
-        """Fetch Linear comments for an issue by its identifier. Returns None if not tracked."""
+        """Fetch Linear comments + thinking log for an issue by its identifier."""
         issue = next(
             (i for i in self._last_issues.values() if i.identifier == issue_identifier),
             None,
@@ -1508,11 +1548,13 @@ class Orchestrator:
         try:
             client = self._ensure_linear_client()
             comments = await client.fetch_comments(issue.id)
+            thinking_log = self._read_thinking_log(issue_identifier)
             return {
                 "issue_identifier": issue.identifier,
                 "issue_title": issue.title,
                 "issue_url": getattr(issue, "url", None),
                 "comments": comments,
+                "thinking_log": thinking_log,
             }
         except Exception as e:
             logger.warning(f"Failed to fetch comments for {issue_identifier}: {e}")
