@@ -41,6 +41,34 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     --font:      'IBM Plex Mono', monospace;
   }
 
+  html.light {
+    --bg:        #f5f5f2;
+    --surface:   #ffffff;
+    --border:    #e0e0da;
+    --border-hi: #c8c8c0;
+    --text:      #1a1a18;
+    --muted:     #88887e;
+    --dim:       #c0c0b8;
+    --amber:     #a06800;
+    --amber-dim: #c89030;
+    --green:     #267040;
+    --red:       #b83028;
+    --blue:      #2458b8;
+  }
+
+  html.light body::before { opacity: 0.12; }
+  html.light .agent-card:hover { background: #eeeeeb; }
+  html.light .think-item { border-left-color: #d0d0c8; }
+  html.light .think-item::before { background: #b0b0a8; border-color: var(--bg); }
+  html.light .think-item.tool { border-left-color: #a8d8b8; }
+  html.light .think-item.tool::before { background: #267040; }
+  html.light .think-badge { background: #e8e8e4; color: #666; }
+  html.light .think-badge.tool { background: #d0eed8; color: #267040; }
+  html.light .think-badge.result { background: #fdf0cc; color: #a06800; }
+  html.light .think-text { color: #555; }
+  html.light .think-tool-name { color: #267040; }
+  html.light .think-input { background: #f0f0ec; border-color: #d8d8d0; color: #666; }
+
   html, body {
     background: var(--bg);
     color: var(--text);
@@ -108,6 +136,25 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     display: flex;
     align-items: center;
     gap: 24px;
+  }
+
+  .theme-toggle {
+    background: transparent;
+    border: 1px solid var(--border-hi);
+    color: var(--muted);
+    font-family: var(--font);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .theme-toggle:hover {
+    border-color: var(--amber-dim);
+    color: var(--amber);
   }
 
   .status-dot {
@@ -780,8 +827,29 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     color: var(--muted);
     padding: 20px 0 8px;
     border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
   .drawer-section-header:first-child { padding-top: 4px; }
+
+  .drawer-live-badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 2px;
+    background: rgba(76, 186, 110, 0.15);
+    color: var(--green);
+    border: 1px solid rgba(76, 186, 110, 0.3);
+    animation: live-pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes live-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
+  }
 
   /* ── Thinking log items ── */
   .think-item {
@@ -859,6 +927,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <span class="logo-tag">Claude Code Orchestrator</span>
     </div>
     <div class="header-right">
+      <button id="theme-toggle" class="theme-toggle">light</button>
       <div id="status-dot" class="status-dot idle"></div>
       <span id="ts" class="timestamp">—</span>
     </div>
@@ -956,6 +1025,21 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </div>
 
 <script>
+  // ── Theme toggle ──────────────────────────────────────────────────────────
+  (function() {
+    const saved = localStorage.getItem('stokowski-theme') || 'dark';
+    if (saved === 'light') document.documentElement.classList.add('light');
+    document.addEventListener('DOMContentLoaded', function() {
+      const btn = document.getElementById('theme-toggle');
+      btn.textContent = document.documentElement.classList.contains('light') ? 'dark' : 'light';
+      btn.addEventListener('click', function() {
+        const isLight = document.documentElement.classList.toggle('light');
+        localStorage.setItem('stokowski-theme', isLight ? 'light' : 'dark');
+        btn.textContent = isLight ? 'dark' : 'light';
+      });
+    });
+  })();
+
   function esc(s) {
     return String(s)
       .replace(/&/g, '&amp;')
@@ -1196,16 +1280,34 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   const drawer    = document.getElementById('modal-drawer');
   const closeBtn  = document.getElementById('modal-close-btn');
 
+  let _drawerIdentifier = null;
+  let _drawerTimer      = null;
+
+  function _startLivePolling(identifier) {
+    _stopLivePolling();
+    _drawerTimer = setInterval(() => {
+      if (_drawerIdentifier) loadComments(_drawerIdentifier, true);
+    }, 2000);
+  }
+
+  function _stopLivePolling() {
+    if (_drawerTimer) { clearInterval(_drawerTimer); _drawerTimer = null; }
+  }
+
   function openDrawer(identifier) {
+    _drawerIdentifier = identifier;
     document.getElementById('modal-issue-id').textContent    = identifier;
     document.getElementById('modal-issue-title').textContent = '';
     document.getElementById('modal-body').innerHTML =
       '<div class="comment-placeholder">Loading…</div>';
     overlay.classList.add('open');
     loadComments(identifier);
+    _startLivePolling(identifier);
   }
 
   function closeDrawer() {
+    _drawerIdentifier = null;
+    _stopLivePolling();
     overlay.classList.remove('open');
   }
 
@@ -1214,38 +1316,54 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
   window.__stokowskiOpenIssue = openDrawer;
 
-  async function loadComments(identifier) {
+  async function loadComments(identifier, silent = false) {
+    const body = document.getElementById('modal-body');
+    if (!silent) {
+      body.innerHTML = '<div class="comment-placeholder">Loading…</div>';
+    }
     try {
       const res  = await fetch('/api/v1/issues/' + encodeURIComponent(identifier) + '/comments');
       const data = await res.json();
       if (!res.ok) {
-        document.getElementById('modal-body').innerHTML =
-          '<div class="comment-placeholder">Failed to load comments.</div>';
+        if (!silent) body.innerHTML = '<div class="comment-placeholder">Failed to load comments.</div>';
         return;
       }
       document.getElementById('modal-issue-title').textContent = data.issue_title || '';
       const comments    = data.comments     || [];
       const thinkingLog = data.thinking_log || [];
+      const isRunning   = !!data.is_running;
+
+      // Stop polling once agent finishes
+      if (!isRunning) _stopLivePolling();
 
       if (comments.length === 0 && thinkingLog.length === 0) {
-        document.getElementById('modal-body').innerHTML =
-          '<div class="comment-placeholder">No activity recorded for this issue yet.</div>';
+        body.innerHTML = '<div class="comment-placeholder">No activity recorded for this issue yet.</div>';
         return;
       }
 
+      // Track scroll position before re-render (for auto-scroll logic)
+      const wasAtBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
+
+      const liveTag = isRunning
+        ? '<span class="drawer-live-badge">live</span>'
+        : '';
+
       let html = '';
       if (thinkingLog.length > 0) {
-        html += '<div class="drawer-section-header">AI 思考过程</div>';
+        html += '<div class="drawer-section-header">AI 思考过程 ' + liveTag + '</div>';
         html += '<div class="comment-list">' + thinkingLog.map(renderThinkingEntry).join('') + '</div>';
       }
       if (comments.length > 0) {
         html += '<div class="drawer-section-header">Linear 评论</div>';
         html += '<div class="comment-list">' + comments.map(renderComment).join('') + '</div>';
       }
-      document.getElementById('modal-body').innerHTML = html;
+      body.innerHTML = html;
+
+      // Auto-scroll to bottom only if already near bottom
+      if (wasAtBottom) body.scrollTop = body.scrollHeight;
+
     } catch (e) {
-      document.getElementById('modal-body').innerHTML =
-        '<div class="comment-placeholder">Failed to load comments.</div>';
+      if (!silent) body.innerHTML = '<div class="comment-placeholder">Failed to load comments.</div>';
     }
   }
 

@@ -1549,12 +1549,20 @@ class Orchestrator:
             client = self._ensure_linear_client()
             comments = await client.fetch_comments(issue.id)
             thinking_log = self._read_thinking_log(issue_identifier)
+
+            # Append in-progress messages from the currently running attempt
+            running_attempt = self.running.get(issue.id)
+            is_running = running_attempt is not None
+            if running_attempt and running_attempt.messages:
+                thinking_log = thinking_log + list(running_attempt.messages)
+
             return {
                 "issue_identifier": issue.identifier,
                 "issue_title": issue.title,
                 "issue_url": getattr(issue, "url", None),
                 "comments": comments,
                 "thinking_log": thinking_log,
+                "is_running": is_running,
             }
         except Exception as e:
             logger.warning(f"Failed to fetch comments for {issue_identifier}: {e}")
