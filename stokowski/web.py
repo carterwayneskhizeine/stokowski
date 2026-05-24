@@ -85,6 +85,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
   /* Light mode — drawer chrome */
   html.light .modal-overlay { background: rgba(0,0,0,0.25); }
+  html.light .modal-drawer { background: var(--surface); border-left-color: var(--border-hi); }
   html.light .drawer-section-header { color: var(--muted); border-color: var(--border); }
   html.light .drawer-live-badge { background: rgba(38,112,64,0.1); color: var(--green); border-color: rgba(38,112,64,0.25); }
 
