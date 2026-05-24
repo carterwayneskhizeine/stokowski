@@ -58,16 +58,35 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
   html.light body::before { opacity: 0.12; }
   html.light .agent-card:hover { background: #eeeeeb; }
+
+  /* Light mode — thinking log */
   html.light .think-item { border-left-color: #d0d0c8; }
-  html.light .think-item::before { background: #b0b0a8; border-color: var(--bg); }
+  html.light .think-item::before { background: #aaa; border-color: var(--bg); }
   html.light .think-item.tool { border-left-color: #a8d8b8; }
   html.light .think-item.tool::before { background: #267040; }
-  html.light .think-badge { background: #e8e8e4; color: #666; }
-  html.light .think-badge.tool { background: #d0eed8; color: #267040; }
-  html.light .think-badge.result { background: #fdf0cc; color: #a06800; }
-  html.light .think-text { color: #555; }
+  html.light .think-badge { background: #e4e4e0; color: #555; }
+  html.light .think-badge.tool { background: #cce8d4; color: #267040; }
+  html.light .think-badge.result { background: #faedc0; color: #a06800; }
+  html.light .think-time { color: #aaa; }
+  html.light .think-text { color: #444; }
   html.light .think-tool-name { color: #267040; }
-  html.light .think-input { background: #f0f0ec; border-color: #d8d8d0; color: #666; }
+  html.light .think-input { background: #f0f0ec; border-color: #d8d8d0; color: #555; }
+
+  /* Light mode — comment items */
+  html.light .comment-item { border-left-color: var(--border-hi); }
+  html.light .comment-item::before { background: #bbb; border-color: var(--bg); }
+  html.light .comment-item.tracking { border-left-color: var(--amber-dim); }
+  html.light .comment-item.tracking::before { background: var(--amber-dim); border-color: var(--amber-dim); }
+  html.light .comment-badge { background: rgba(160,104,0,0.08); border-color: var(--amber-dim); }
+  html.light .comment-time { color: #aaa; }
+  html.light .comment-text { color: var(--text); }
+  html.light .comment-text.muted { color: var(--muted); }
+  html.light .comment-placeholder { color: var(--muted); }
+
+  /* Light mode — drawer chrome */
+  html.light .modal-overlay { background: rgba(0,0,0,0.25); }
+  html.light .drawer-section-header { color: var(--muted); border-color: var(--border); }
+  html.light .drawer-live-badge { background: rgba(38,112,64,0.1); color: var(--green); border-color: rgba(38,112,64,0.25); }
 
   html, body {
     background: var(--bg);
@@ -791,7 +810,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
   .comment-time {
     font-size: 10px;
-    color: var(--muted);
+    color: #707070;
     font-weight: 300;
     letter-spacing: 0.03em;
   }
@@ -855,7 +874,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   .think-item {
     position: relative;
     padding: 10px 0 10px 16px;
-    border-left: 2px solid #222;
+    border-left: 2px solid #2e2e2e;
   }
   .think-item + .think-item { margin-top: 2px; }
   .think-item::before {
@@ -864,10 +883,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     left: -5px; top: 14px;
     width: 8px; height: 8px;
     border-radius: 50%;
-    background: #333;
+    background: #4a4a4a;
     border: 2px solid var(--bg);
   }
-  .think-item.tool  { border-left-color: #1a3828; }
+  .think-item.tool  { border-left-color: #1e4030; }
   .think-item.tool::before  { background: #2d7a50; }
   .think-item.result { border-left-color: var(--amber-dim); }
   .think-item.result::before { background: var(--amber-dim); }
@@ -885,31 +904,31 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     text-transform: uppercase;
     padding: 2px 6px;
     border-radius: 2px;
-    background: #1a1a1a;
-    color: var(--muted);
+    background: #252525;
+    color: #909090;
   }
-  .think-badge.tool   { background: #162318; color: #4caf50; }
-  .think-badge.result { background: #251c00; color: var(--amber); }
-  .think-time { font-size: 10px; color: var(--muted); }
+  .think-badge.tool   { background: #1a2e22; color: #5cb87a; }
+  .think-badge.result { background: #2e2000; color: var(--amber); }
+  .think-time { font-size: 10px; color: #707070; }
 
   .think-text {
     font-size: 12px;
-    line-height: 1.6;
-    color: #999;
+    line-height: 1.65;
+    color: #c8c8c8;
     white-space: pre-wrap;
     word-break: break-word;
   }
   .think-tool-name {
     font-size: 12px;
-    color: #4caf50;
+    color: #5cb87a;
     font-weight: 600;
     margin-bottom: 4px;
   }
   .think-input {
     font-size: 11px;
-    color: #777;
-    background: #0d0d0d;
-    border: 1px solid #1c1c1c;
+    color: #aaa;
+    background: #111;
+    border: 1px solid #282828;
     border-radius: 3px;
     padding: 6px 8px;
     white-space: pre-wrap;
@@ -1330,7 +1349,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       }
       document.getElementById('modal-issue-title').textContent = data.issue_title || '';
       const comments    = data.comments     || [];
-      const thinkingLog = data.thinking_log || [];
+      const thinkingLog = (data.thinking_log || []).slice().reverse();
       const isRunning   = !!data.is_running;
 
       // Stop polling once agent finishes
@@ -1340,9 +1359,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         body.innerHTML = '<div class="comment-placeholder">No activity recorded for this issue yet.</div>';
         return;
       }
-
-      // Track scroll position before re-render (for auto-scroll logic)
-      const wasAtBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
 
       const liveTag = isRunning
         ? '<span class="drawer-live-badge">live</span>'
@@ -1358,9 +1374,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         html += '<div class="comment-list">' + comments.map(renderComment).join('') + '</div>';
       }
       body.innerHTML = html;
-
-      // Auto-scroll to bottom only if already near bottom
-      if (wasAtBottom) body.scrollTop = body.scrollHeight;
 
     } catch (e) {
       if (!silent) body.innerHTML = '<div class="comment-placeholder">Failed to load comments.</div>';
