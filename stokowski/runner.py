@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -413,6 +413,7 @@ def _process_event(
     """Process a single NDJSON event from Claude Code stream-json output."""
     event_type = event.get("type", "")
     attempt.last_event = event_type
+    now_ts = datetime.now(UTC).isoformat()
 
     # Extract session_id from result events
     if event_type == "result":
@@ -431,22 +432,33 @@ def _process_event(
         result_text = event.get("result", "")
         if isinstance(result_text, str) and result_text:
             attempt.last_message = result_text[:200]
+            attempt.messages.append({"type": "result", "text": result_text, "ts": now_ts})
 
     elif event_type == "assistant":
         # Assistant message content
         msg = event.get("message", {})
         content = msg.get("content", "")
+        text = ""
         if isinstance(content, str) and content:
-            attempt.last_message = content[:200]
+            text = content
         elif isinstance(content, list):
             for block in content:
                 if isinstance(block, dict) and block.get("type") == "text":
-                    attempt.last_message = block.get("text", "")[:200]
+                    text = block.get("text", "")
                     break
+        if text:
+            attempt.last_message = text[:200]
+            attempt.messages.append({"type": "assistant", "text": text, "ts": now_ts})
 
     elif event_type == "tool_use":
         tool_name = event.get("name", event.get("tool", ""))
         attempt.last_message = f"Using tool: {tool_name}"
+        raw_input = event.get("input", {})
+        summarized: dict = {}
+        for k, v in (raw_input.items() if isinstance(raw_input, dict) else {}.items()):
+            s = str(v)
+            summarized[k] = s[:500] + "…" if len(s) > 500 else s
+        attempt.messages.append({"type": "tool_use", "name": tool_name, "input": summarized, "ts": now_ts})
 
     # Forward to orchestrator callback
     if on_event:
